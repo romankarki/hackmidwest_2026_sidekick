@@ -39,8 +39,9 @@ def main(ip):
         key = gh("GET", f"/repos/{repo}/actions/secrets/public-key")
         for name, value in values.items():
             put_secret(repo, name, value, key)
-        if previews:
-            put_secret(repo, "PREVIEW_DOMAIN", f"{ip.replace('.', '-')}.sslip.io", key)
+        if previews:  # PR previews run on LKE once deploy/lke-setup.sh has run, else on the VM
+            k8s_host = KEYS / "k8s-host"
+            put_secret(repo, "PREVIEW_DOMAIN", k8s_host.read_text().strip() if k8s_host.exists() else f"{ip.replace('.', '-')}.sslip.io", key)
 
 
 if __name__ == "__main__":

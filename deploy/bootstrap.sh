@@ -39,6 +39,25 @@ chown deploy:deploy /home/deploy/.ssh/authorized_keys && chmod 600 /home/deploy/
 echo "deploy ALL=(root) NOPASSWD: /usr/bin/systemctl reload caddy" > /etc/sudoers.d/deploy-caddy && chmod 440 /etc/sudoers.d/deploy-caddy
 chown deploy:deploy /etc/caddy/sites
 
+# ---- LKE previews (optional: present once deploy/lke-setup.sh has run) ----
+if [ -f "$UP/dashboard_gate_key.pub" ]; then  # Sidekick's kill switch: dashboard role only, only from Docker networks
+  echo "command=\"$APPS/gate.sh dashboard\",from=\"172.16.0.0/12,192.168.0.0/16\",restrict $(cat "$UP/dashboard_gate_key.pub")" >> /home/deploy/.ssh/authorized_keys
+  cat >> "$APPS/sidekick/sidekick/.env" <<EOF
+GATE_SSH_KEY=$(base64 -w0 "$UP/dashboard_gate_key")
+GATE_HOST_KEY=$(cut -d' ' -f1,2 /etc/ssh/ssh_host_ed25519_key.pub)
+EOF
+fi
+if [ -f "$UP/lke-kubeconfig.yaml" ]; then
+  if ! command -v kubectl >/dev/null; then
+    curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.36/deb/Release.key | gpg --dearmor --batch --yes -o /etc/apt/keyrings/kubernetes.gpg
+    echo "deb [signed-by=/etc/apt/keyrings/kubernetes.gpg] https://pkgs.k8s.io/core:/stable:/v1.36/deb/ /" > /etc/apt/sources.list.d/kubernetes.list
+    apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq kubectl >/dev/null
+  fi
+  install -d -o deploy -g deploy -m 700 "$APPS/kube" "$APPS/k8s-previews"
+  install -o deploy -g deploy -m 600 "$UP/lke-kubeconfig.yaml" "$APPS/kube/config"
+  cp "$UP/k8s-host" "$APPS/k8s-host"
+fi
+
 # ---- HTTPS routes (Caddy gets Let's Encrypt certificates automatically) ----
 HASH="$(caddy hash-password --plaintext "$DASH_PASS")"
 cat > /etc/caddy/Caddyfile <<EOF

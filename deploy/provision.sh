@@ -43,6 +43,7 @@ $SSH "cloud-init status --wait >/dev/null; docker --version && caddy version | h
 UP="$(mktemp -d)"
 cp sidekick/.env "$UP/sidekick.env"; cp slack-bot/.env "$UP/slack-bot.env"; cp devrev-mcp/teammates.json "$UP/teammates.json"
 cp "$KEYS/ci_deploy_key.pub" "$UP/"
+for f in dashboard_gate_key dashboard_gate_key.pub lke-kubeconfig.yaml k8s-host; do if [ -f "$KEYS/$f" ]; then cp "$KEYS/$f" "$UP/"; fi; done  # LKE previews (deploy/lke-setup.sh)
 if (cd sidekick && docker compose ps --status running db | grep -q db); then  # carry over integrations, model, history
   (cd sidekick && docker compose exec -T db pg_dump --clean --if-exists -U sidekick sidekick) > "$UP/sidekick.sql"
   echo "✓ dumped local Sidekick database ($(wc -c < "$UP/sidekick.sql") bytes)"
