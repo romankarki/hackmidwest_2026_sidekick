@@ -184,15 +184,34 @@ def _ensure_labels(repo, h):
             raise GitHubError(f"GitHub create label {name} → HTTP {r.status_code}")
 
 
-def open_review_issue(change, pr, preview_url=None):
-    """GitHub issue asking a developer to review the PR in its preview and build on top of it. Links PR ↔ issue.
-    Assignee: Integrations → GitHub → 'Review issue assignee' (optional GitHub username)."""
+def pr_preview_url(number, branch=""):
+    """Where the repo's PR-preview workflow serves this PR (Integrations → ShopLite → PR preview URL template), or None."""
+    cfg = integrations.creds("shoplite")
+    template = cfg.get("pr_preview_url_template") or cfg.get("preview_url_template") or ""
+    return template.format(label=f"pr-{number}", branch=branch, port="") if template.startswith("https://") else None
+
+
+def pr_info(number):
+    """A PR's title, body, branches, state and diff (for hand-off issues about PRs Sidekick didn't just open)."""
     repo, base, h = config()
-    assignee = (integrations.creds("github").get("issue_assignee") or "").strip().lstrip("@")
+    pr = _call("GET", f"/repos/{repo}/pulls/{int(number)}", h)
+    files = _call("GET", f"/repos/{repo}/pulls/{int(number)}/files", h, params={"per_page": 100})
+    diff = "".join(f"--- a/{f['filename']}\n+++ b/{f['filename']}\n{f.get('patch', '')}\n" for f in files)
+    return {"number": pr["number"], "url": pr["html_url"], "title": pr["title"], "body": pr.get("body") or "", "repo": repo,
+            "branch": pr["head"]["ref"], "base": pr["base"]["ref"], "state": "merged" if pr.get("merged_at") else pr["state"],
+            "files": [f["filename"] for f in files], "diff": diff}
+
+
+def open_review_issue(change, pr, preview_url=None, notes="", assignee=None):
+    """GitHub issue asking a developer to review the PR in its preview and build on top of it. Links PR ↔ issue.
+    Filed when a human asks for it (e.g. "preview looks good, file an issue"). `notes` = what the human said.
+    Assignee: `assignee`, else Integrations → GitHub → 'Review issue assignee' (optional GitHub username)."""
+    repo, base, h = config()
+    assignee = (assignee or integrations.creds("github").get("issue_assignee") or "").strip().lstrip("@")
     files = "\n".join(f"- `{f}`" for f in pr["files"])
     assumptions = "\n".join(f"- {a}" for a in change.get("assumptions") or []) or "- None stated"
     follow_ups = "\n".join(f"- [ ] {f}" for f in change.get("follow_ups") or []) or "- [ ] Anything the preview shows is missing"
-    body = f"""Sidekick opened **#{pr['number']}** ({change['title']}). It is a first pass: please review it in the live preview and build on top of it.
+    body = f"""**#{pr['number']}** ({change['title']}) is ready for a developer: review it in the live preview and build on top of it.
 
 | | |
 |---|---|
@@ -217,7 +236,10 @@ def open_review_issue(change, pr, preview_url=None):
 
 ### Suggested follow-ups
 {follow_ups}
-
+{f"""
+### Notes from {change.get('filed_by', 'the reviewer')}
+{notes}
+""" if notes else ""}
 <details><summary>Diff Sidekick proposed</summary>
 
 ```diff
