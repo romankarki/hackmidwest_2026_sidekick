@@ -42,13 +42,15 @@ def akamai_cloud():
     if not integrations.creds("akamai_cloud").get("api_token"):
         return {"configured": False}
     vms, run_rate = [], 0.0
+    lke_ids = {str(c["id"]): c["label"] for c in _linode("/lke/clusters")["data"]}
     for v in _linode("/linode/instances")["data"]:
         t = _linode_type(v["type"])
         monthly = t["price"]["monthly"] or 0
         run_rate += monthly  # a powered-off Linode still bills; LKE worker nodes are Linodes too, so they're counted here
         vms.append({"label": v["label"], "status": v["status"], "region": v["region"], "plan": f"{t['label']} ({v['type']})",
                     "ipv4": v["ipv4"][0] if v["ipv4"] else None, "monthly_usd": monthly, "tags": v.get("tags", []),
-                    "lke_node": v["label"].startswith("lke")})
+                    "role": (f"LKE worker node (cluster {lke_ids.get(v['label'][3:].split('-')[0], '?')}: PR previews)"
+                             if v["label"].startswith("lke") else "standalone VM (" + (", ".join(v.get("tags", [])) or "untagged") + ")")})
     clusters = []
     for c in _linode("/lke/clusters")["data"]:
         pools = _linode(f"/lke/clusters/{c['id']}/pools")["data"]
@@ -58,7 +60,9 @@ def akamai_cloud():
                          "node_plans": [f"{p['count']}× {p['type']}" for p in pools], "ha_control_plane": bool(ha),
                          "control_plane_monthly_usd": 60.0 if ha else 0.0})
         run_rate += 60.0 if ha else 0.0  # node VMs are already counted in `vms`
-    nbs = [{"label": n["label"], "region": n["region"], "ipv4": n["ipv4"], "hostname": n["hostname"], "monthly_usd": 10.0}
+    nbs = [{"label": n["label"], "region": n["region"], "ipv4": n["ipv4"], "hostname": n["hostname"], "monthly_usd": 10.0,
+            "role": (f"load balancer for LKE cluster {lke_ids.get(n['label'][3:].split('-')[0], '?')} (Kubernetes ingress)"
+                     if n["label"].startswith("lke") else "load balancer")}
            for n in _linode("/nodebalancers")["data"]]
     run_rate += 10.0 * len(nbs)
     fws = [{"label": f["label"], "status": f["status"], "attached": len(f.get("entities", []))} for f in _linode("/networking/firewalls")["data"]]
