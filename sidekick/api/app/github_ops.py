@@ -59,6 +59,35 @@ def read_file(path, ref=None):
     return base64.b64decode(f["content"]).decode("utf-8"), f["sha"]
 
 
+def file_exists(path, ref=None):
+    repo, base, h = config()
+    r = requests.get(f"{API}/repos/{repo}/contents/{path.strip('/')}", headers=h, params={"ref": ref or base}, timeout=TIMEOUT)
+    if r.status_code == 404:
+        return False
+    if r.status_code >= 400:
+        raise GitHubError(f"GitHub GET contents/{path} → HTTP {r.status_code}")
+    return True
+
+
+_brief_cache = {"at": 0.0, "key": None, "text": ""}
+
+
+def repo_brief(max_chars=6000):
+    """The target repo's SIDEKICK.md (stack, file map, conventions), cached 5 min. Empty if GitHub isn't connected or no file."""
+    try:
+        repo, base, _ = config()
+    except GitHubError:
+        return ""
+    if _brief_cache["key"] == (repo, base) and time.time() - _brief_cache["at"] < 300:
+        return _brief_cache["text"]
+    try:
+        text = read_file("SIDEKICK.md")[0][:max_chars] if file_exists("SIDEKICK.md") else ""
+    except (GitHubError, requests.RequestException):
+        text = _brief_cache["text"] if _brief_cache["key"] == (repo, base) else ""
+    _brief_cache.update(at=time.time(), key=(repo, base), text=text)
+    return text
+
+
 def search(query, max_hits=30):
     """Case-insensitive text search over the repo's text files (the repo is small; GitHub code search doesn't index new repos)."""
     q = query.lower()
@@ -79,14 +108,20 @@ def search(query, max_hits=30):
 def prepare_edits(edits):
     """Validate find/replace edits against the base branch. Returns {"files": {path: new_text}, "diff": str}.
 
-    Each edit is {"path", "find", "replace"}; `find` must occur exactly once in the file (after earlier edits to it)."""
+    Each edit is {"path", "find", "replace"}; `find` must occur exactly once in the file (after earlier edits to it).
+    An empty `find` creates a NEW file whose content is `replace` (refused if the file already exists)."""
     if not edits:
         raise GitHubError("No edits given")
     originals, current = {}, {}
     for i, e in enumerate(edits, 1):
-        path, find, repl = (e.get("path") or "").strip("/"), e.get("find"), e.get("replace")
-        if not path or not find or repl is None:
+        path, find, repl = (e.get("path") or "").strip("/"), e.get("find") or "", e.get("replace")
+        if not path or repl is None:
             raise GitHubError(f"Edit {i}: needs path, find and replace")
+        if not find:  # new file
+            if path in current or file_exists(path):
+                raise GitHubError(f"Edit {i}: {path} already exists; to change it, use a non-empty `find` copied from the file")
+            originals[path], current[path] = "", repl
+            continue
         if path not in current:
             originals[path], _ = read_file(path)
             current[path] = originals[path]
@@ -123,10 +158,11 @@ def open_pr(change, step):
 
     for path, text in prepared["files"].items():
         def commit(path=path, text=text):
-            _, blob = read_file(path, ref=branch)
-            return _call("PUT", f"/repos/{repo}/contents/{path}", h, json={
-                "message": f"{change['title']}\n\nProposed by Sidekick, approved by {change.get('approved_by', 'a human')}.",
-                "content": base64.b64encode(text.encode("utf-8")).decode(), "sha": blob, "branch": branch})["commit"]["sha"]
+            body = {"message": f"{change['title']}\n\nProposed by Sidekick, approved by {change.get('approved_by', 'a human')}.",
+                    "content": base64.b64encode(text.encode("utf-8")).decode(), "branch": branch}
+            if file_exists(path, ref=branch):  # updating needs the current blob sha; new files don't
+                body["sha"] = read_file(path, ref=branch)[1]
+            return _call("PUT", f"/repos/{repo}/contents/{path}", h, json=body)["commit"]["sha"]
         step("github.commit", path, commit)
 
     body = (f"{change.get('summary', '')}\n\n**Requested by:** {change.get('requested_by', '?')} · **Approved by:** {change.get('approved_by', '?')}\n\n"
