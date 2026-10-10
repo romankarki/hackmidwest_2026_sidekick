@@ -378,16 +378,14 @@ def _ship_code_change(conv, change, step):
         url = template.format(label=f"pr-{pr['number']}", branch=pr["branch"], port="")
         preview = f"\n• Preview on Akamai LKE (ready in ~3–4 min, built by GitHub Actions): {url}"
         actions.append({"id": "open", "label": f"🔍 Open preview pr-{pr['number']}", "url": url})
-    handoff = ""
-    try:  # hand the work to a developer: review in the preview, build on top of it
-        issue = step("github.create_issue", f"review & follow-ups for #{pr['number']}", lambda: github_ops.open_review_issue(change, pr, url))
-        who = f" (assigned to @{issue['assignee']})" if issue["assignee"] else ""
-        handoff = f"\n• Developer hand-off: issue #{issue['number']}{who}: {issue['url']}"
-        actions.append({"id": "open", "label": f"📝 Issue #{issue['number']}", "url": issue["url"]})
-    except Exception:  # noqa: BLE001 — the PR is what matters; a failed issue is reported in the run steps
-        handoff = "\n• ⚠️ Couldn't file the developer hand-off issue (see the run steps)"
+    # remember the PR in this thread: "preview looks good, file an issue" later hands it to a developer (file_review_issue)
+    last_pr = {**{k: pr[k] for k in ("number", "url", "branch", "base", "repo", "files")}, "preview_url": url,
+               **{k: change.get(k) for k in ("title", "summary", "assumptions", "follow_ups", "requested_by", "approved_by")}}
+    db.run("UPDATE conversations SET context = context || %s WHERE id = %s", (db.J({"last_pr": last_pr}), conv["id"]))
     return (f"✅ *Pull request #{pr['number']} opened* on `{pr['repo']}`: {change['title']}\n"
-            f"• Branch `{pr['branch']}` → `{pr['base']}`\n• Review and merge it on GitHub: {pr['url']}{preview}{handoff}", actions)
+            f"• Branch `{pr['branch']}` → `{pr['base']}`\n• Review and merge it on GitHub: {pr['url']}{preview}\n"
+            "_When the preview looks good, say “file an issue for a dev” and I'll hand it off with the preview link, "
+            "assumptions and follow-ups._", actions)
 
 
 # ---------- runs whose steps do real work (not simulated) ----------

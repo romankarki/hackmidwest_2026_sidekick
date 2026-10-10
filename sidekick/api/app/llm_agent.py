@@ -44,8 +44,10 @@ How you work:
 - Prefer what already exists: if the feature is already implemented behind a flag, enable it instead of rebuilding it.
 - Code changes: find the code (`github_search_code` / `github_list_files`), read it (`github_read_file`), then call
   `propose_code_change` ONCE with all edits. Each `find` is copied exactly from the file; an empty `find` creates a new
-  file. Keep changes minimal and in the repo's style. Pass your `assumptions` and concrete `follow_ups` for the developer:
-  after approval Sidekick opens the PR with a live preview and files a GitHub issue handing it to a developer.
+  file. Keep changes minimal and in the repo's style. Pass your `assumptions` and concrete `follow_ups`: after approval
+  Sidekick opens the PR with a live preview, and keeps them for a later hand-off.
+- Hand-off: when the user says the preview/PR looks good and asks to file an issue / hand it to a developer, call
+  `file_review_issue` right away (it defaults to this conversation's PR; pass their words as `notes`). Only when asked.
 - Production problems: ShopLite runs on Akamai Cloud and ships metrics to Amazon CloudWatch (namespace ShopLite/Akamai).
   Start with `cloudwatch_shoplite_overview` and `cloudwatch_alarms`, correlate with `github_recent_commits`, then propose a fix.
 - If an integration isn't connected, say which one in one line and continue with what you can check.
@@ -345,8 +347,7 @@ def make_propose_code_change(conv, actor, flag):
     def propose_code_change(title: str, summary: str, edits: list[dict], assumptions: list[str] | None = None,
                             follow_ups: list[str] | None = None) -> str:
         """Propose a code change to the ShopLite repo for human approval. After approval Sidekick creates a branch,
-        commits exactly these edits, opens a pull request with a live preview, and files a GitHub issue handing the work
-        to a developer (review in the preview, build on top). Read the files first: each `find` must be copied exactly
+        commits exactly these edits and opens a pull request with a live preview. Read the files first: each `find` must be copied exactly
         from github_read_file and must occur exactly once in that file.
 
         Args:
@@ -435,6 +436,46 @@ def akamai_property_caching_rules(property_name: str) -> str:
     return _clip({"property": property_name, "version": p["latestVersion"], "caching_behaviors": found})
 
 
+def make_file_review_issue(conv, actor):
+    @tool
+    def file_review_issue(pr_number: int = 0, notes: str = "", follow_ups: list[str] | None = None, assignee: str = "") -> str:
+        """File a GitHub issue that hands a pull request to a developer: review it in the live preview and build on top of
+        it (PR + preview links, what changed, assumptions, review checklist, follow-ups, diff; the PR then closes it).
+        Call this ONLY when the user asks for it, e.g. "preview looks good, file an issue" / "hand this to a dev".
+
+        Args:
+            pr_number: The PR to hand off; 0 = the PR Sidekick opened in this conversation
+            notes: What the user said about it, in their words (e.g. "Preview looks good; check it on mobile")
+            follow_ups: Extra concrete next steps for the developer (optional; added to the ones from the proposal)
+            assignee: GitHub username to assign (optional; default from Integrations → GitHub → Review issue assignee)
+        """
+        ctx = (db.one("SELECT context FROM conversations WHERE id = %s", (conv["id"],)) or {}).get("context") or {}
+        saved = ctx.get("last_pr") or {}
+        number = int(pr_number) or int(saved.get("number") or 0)
+        if not number:
+            return "No PR in this conversation yet: ask for the PR number (e.g. 'file an issue for PR #7')."
+        try:
+            pr = github_ops.pr_info(number)
+        except github_ops.GitHubError as e:
+            return f"Couldn't read PR #{number}: {e}"
+        if pr["state"] != "open":
+            return f"PR #{number} is {pr['state']}; a hand-off issue is for open PRs. Say so if you still want one."
+        mine = saved if int(saved.get("number") or 0) == number else {}
+        change = {"title": mine.get("title") or pr["title"],
+                  "summary": mine.get("summary") or pr["body"].split("\n\n**Requested by")[0][:1500],
+                  "assumptions": mine.get("assumptions") or [], "requested_by": mine.get("requested_by") or "?",
+                  "approved_by": mine.get("approved_by") or "?", "filed_by": actor.get("name") or actor.get("id") or "the reviewer",
+                  "follow_ups": (mine.get("follow_ups") or []) + [str(f)[:300] for f in (follow_ups or [])][:8]}
+        preview = mine.get("preview_url") or github_ops.pr_preview_url(number, pr["branch"])
+        try:
+            issue = github_ops.open_review_issue(change, pr, preview, notes=notes.strip()[:2000], assignee=assignee or None)
+        except github_ops.GitHubError as e:
+            return f"Couldn't file the issue: {e}"
+        who = f", assigned to @{issue['assignee']}" if issue["assignee"] else ""
+        return f"Filed issue #{issue['number']}{who}: {issue['url']} (PR #{number} now closes it on merge). Preview: {preview or 'n/a'}"
+    return file_review_issue
+
+
 def make_request_approval(conv, actor, flag):
     @tool
     def request_approval(title: str, summary: str, plan: str) -> str:
@@ -462,7 +503,7 @@ READ_TOOLS = [shoplite_health, shoplite_route_latency, shoplite_catalog_cache_he
 TOOL_INTEGRATION = {"shoplite_health": "shoplite", "shoplite_route_latency": "shoplite", "shoplite_catalog_cache_headers": "shoplite",
                     "prometheus_query": "prometheus", "cloudwatch_metric": "aws", "cloudwatch_shoplite_overview": "aws", "cloudwatch_alarms": "aws", "eks_cluster_status": "aws", "github_recent_commits": "github",
                     "github_commit_diff": "github", "github_list_files": "github", "github_read_file": "github", "github_search_code": "github",
-                    "propose_code_change": "github", "akamai_list_properties": "akamai", "akamai_property_caching_rules": "akamai"}
+                    "propose_code_change": "github", "file_review_issue": "github", "akamai_list_properties": "akamai", "akamai_property_caching_rules": "akamai"}
 
 
 # ---------- model ----------
@@ -577,13 +618,14 @@ def run(run_id, conv, text, actor):
     flag = {"requested": False}
 
     agent = Agent(model=build_model(r), system_prompt=system, messages=history,
-                  tools=READ_TOOLS + [make_request_approval(conv, actor, flag), make_propose_code_change(conv, actor, flag)], hooks=[StepReporter(run_id)], callback_handler=None)
+                  tools=READ_TOOLS + [make_request_approval(conv, actor, flag), make_propose_code_change(conv, actor, flag),
+                                        make_file_review_issue(conv, actor)], hooks=[StepReporter(run_id)], callback_handler=None)
     reply = str(agent(text)).strip() or "(no text reply)"
 
     db.run("UPDATE conversations SET context = context || %s, updated_at = now() WHERE id = %s",
            (db.J({"llm_messages": json.loads(json.dumps(_trim(agent.messages, limit), default=str))}), conv["id"]))
     if flag.get("diff"):  # always show the exact diff the approver is approving, whatever the model wrote
-        reply = ("📝 *Proposed, not applied yet.* *Approve* opens a pull request with a live preview and a hand-off issue "
-                 "for a developer; nothing is merged or deployed.\n\n" + reply +
+        reply = ("📝 *Proposed, not applied yet.* *Approve* opens a pull request with a live preview; "
+                 "nothing is merged or deployed.\n\n" + reply +
                  f"\n\n*Proposed change:*\n```{flag['diff'][:2500]}```")
     return reply, flag["requested"]

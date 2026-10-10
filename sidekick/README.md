@@ -114,15 +114,20 @@ Example: `@sidekick rename the page title in web/public/index.html to "ShopLite 
    - open a PR whose body contains the diff and who requested and approved it.
 
    The run's model column shows *GitHub API (no model)*, and Slack gets a **View PR** button.
-4. **Hand-off issue.** Right after the PR, Sidekick files a GitHub issue for a developer (labels `sidekick` and `needs-review`, assigned via Integrations → GitHub → *Review issue assignee*). It contains:
-   - the PR and live preview links;
+4. **Hand-off issue, on request.** Look at the preview, then tell Sidekick e.g. *"preview looks good, file an issue for a dev"*. The `file_review_issue` tool files a GitHub issue:
+   - labels `sidekick` and `needs-review`;
+   - assigned via the tool or Integrations → GitHub → *Review issue assignee*.
+
+   It contains:
+   - the PR and preview links;
    - what changed and why;
-   - the agent's **assumptions**;
+   - the agent's assumptions;
    - a review checklist;
-   - suggested **follow-ups**;
+   - follow-ups;
+   - **your notes**;
    - the diff.
 
-   The PR says `Closes #<issue>`, so merging closes it.
+   The PR says `Closes #<issue>`, so merging closes it. Thread-free hand-offs work too: *"file an issue for PR #7"*.
 5. **Reject.** Nothing is created on GitHub. If a GitHub call fails, the approval goes back to pending, so you can fix the cause and approve again.
 
 This needs **Integrations → GitHub**:
