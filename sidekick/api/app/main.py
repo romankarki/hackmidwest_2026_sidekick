@@ -384,6 +384,7 @@ class MessageIn(BaseModel):
     thread_ts: str = ""
     text: str
     actor: Actor = Actor()
+    thread_context: str = Field(default="", max_length=8000)  # earlier messages in the Slack thread (people, DevRev, …)
 
 
 class ActionIn(BaseModel):
@@ -398,7 +399,7 @@ class ActionIn(BaseModel):
 @app.post("/api/agent/message")
 def agent_message(body: MessageIn):
     conv = brain.get_conversation(body.source, body.channel, body.thread_ts)
-    return brain.handle_message(conv, body.text, body.actor.model_dump())
+    return brain.handle_message(conv, body.text, body.actor.model_dump(), body.thread_context)
 
 
 @app.post("/api/agent/action")

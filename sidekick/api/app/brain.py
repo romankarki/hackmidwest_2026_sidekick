@@ -185,21 +185,21 @@ def render_reply(template, conv, actor):
 
 
 # ---------- LLM mode (Strands agent, see llm_agent.py) ----------
-def start_llm_run(conv, text, actor):
+def start_llm_run(conv, text, actor, context=""):
     model = models.label(models.resolve(None))
     title = re.sub(r"<@[A-Z0-9]+>|@sidekick", "", text, flags=re.I).strip()[:90] or "Message"
     row = db.one("INSERT INTO runs (conversation_id, intent, skill, title, source, requested_by, model) VALUES (%s, 'llm', 'agent', %s, %s, %s, %s) RETURNING id",
                  (conv["id"], title, conv["source"], actor_label(actor), model))
     prev = conv["status"]
     set_status(conv["id"], "thinking")
-    threading.Thread(target=_execute_llm, args=(row["id"], conv, text, actor, prev), daemon=True).start()
+    threading.Thread(target=_execute_llm, args=(row["id"], conv, text, actor, prev, context), daemon=True).start()
     return row["id"]
 
 
-def _execute_llm(run_id, conv, text, actor, prev_status):
+def _execute_llm(run_id, conv, text, actor, prev_status, context=""):
     from . import llm_agent  # imported lazily: Strands is only needed in LLM mode
     try:
-        reply, approval = llm_agent.run(run_id, conv, text, actor)
+        reply, approval = llm_agent.run(run_id, conv, text, actor, context)
         set_status(conv["id"], "awaiting_approval" if approval else ("new" if prev_status in BUSY else prev_status))
         db.run("UPDATE runs SET status = 'done', result = %s, finished_at = now() WHERE id = %s",
                (db.J({"text": reply, "actions": APPROVE_ACTIONS if approval else []}), run_id))
@@ -211,7 +211,7 @@ def _execute_llm(run_id, conv, text, actor, prev_status):
 
 
 # ---------- the brain ----------
-def handle_message(conv, text, actor):
+def handle_message(conv, text, actor, context=""):
     intent = classify(text)
     s = conv["status"]
 
@@ -232,7 +232,7 @@ def handle_message(conv, text, actor):
         return reject(conv, actor)
 
     if setting("brain_mode") == "llm":  # Settings → Brain mode: hand everything else to the Strands agent
-        return started(conv, start_llm_run(conv, text, actor))
+        return started(conv, start_llm_run(conv, text, actor, context))
 
     if intent in (None, "help"):
         return reply(conv, _help(s), _suggestions(s))
