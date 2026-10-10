@@ -17,6 +17,7 @@ after approval github_ops opens a real branch + PR) create a pending approval; s
 the human Approve button and the configured workflow.
 """
 import json
+import re
 import time
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
@@ -436,7 +437,7 @@ def akamai_property_caching_rules(property_name: str) -> str:
     return _clip({"property": property_name, "version": p["latestVersion"], "caching_behaviors": found})
 
 
-def make_file_review_issue(conv, actor):
+def make_file_review_issue(conv, actor, flag):
     @tool
     def file_review_issue(pr_number: int = 0, notes: str = "", follow_ups: list[str] | None = None, assignee: str = "") -> str:
         """File a GitHub issue that hands a pull request to a developer: review it in the live preview and build on top of
@@ -461,18 +462,21 @@ def make_file_review_issue(conv, actor):
         if pr["state"] != "open":
             return f"PR #{number} is {pr['state']}; a hand-off issue is for open PRs. Say so if you still want one."
         mine = saved if int(saved.get("number") or 0) == number else {}
+        # PRs from other threads: Sidekick's PR body says "**Requested by:** X · **Approved by:** Y"
+        who = re.search(r"\*\*Requested by:\*\* (.+?) · \*\*Approved by:\*\* (.+?)\n", pr["body"] + "\n")
         change = {"title": mine.get("title") or pr["title"],
                   "summary": mine.get("summary") or pr["body"].split("\n\n**Requested by")[0][:1500],
-                  "assumptions": mine.get("assumptions") or [], "requested_by": mine.get("requested_by") or "?",
-                  "approved_by": mine.get("approved_by") or "?", "filed_by": actor.get("name") or actor.get("id") or "the reviewer",
+                  "assumptions": mine.get("assumptions") or [], "requested_by": mine.get("requested_by") or (who.group(1) if who else "?"),
+                  "approved_by": mine.get("approved_by") or (who.group(2) if who else "?"), "filed_by": actor.get("name") or actor.get("id") or "the reviewer",
                   "follow_ups": (mine.get("follow_ups") or []) + [str(f)[:300] for f in (follow_ups or [])][:8]}
         preview = mine.get("preview_url") or github_ops.pr_preview_url(number, pr["branch"])
         try:
             issue = github_ops.open_review_issue(change, pr, preview, notes=notes.strip()[:2000], assignee=assignee or None)
         except github_ops.GitHubError as e:
             return f"Couldn't file the issue: {e}"
-        who = f", assigned to @{issue['assignee']}" if issue["assignee"] else ""
-        return f"Filed issue #{issue['number']}{who}: {issue['url']} (PR #{number} now closes it on merge). Preview: {preview or 'n/a'}"
+        assigned = f", assigned to @{issue['assignee']}" if issue["assignee"] else ""
+        flag["issue"] = {"number": issue["number"], "url": issue["url"], "pr": number, "assigned": assigned, "preview": preview}
+        return f"Filed issue #{issue['number']}{assigned}: {issue['url']} (PR #{number} now closes it on merge). Preview: {preview or 'n/a'}"
     return file_review_issue
 
 
@@ -619,11 +623,14 @@ def run(run_id, conv, text, actor):
 
     agent = Agent(model=build_model(r), system_prompt=system, messages=history,
                   tools=READ_TOOLS + [make_request_approval(conv, actor, flag), make_propose_code_change(conv, actor, flag),
-                                        make_file_review_issue(conv, actor)], hooks=[StepReporter(run_id)], callback_handler=None)
+                                        make_file_review_issue(conv, actor, flag)], hooks=[StepReporter(run_id)], callback_handler=None)
     reply = str(agent(text)).strip() or "(no text reply)"
 
     db.run("UPDATE conversations SET context = context || %s, updated_at = now() WHERE id = %s",
            (db.J({"llm_messages": json.loads(json.dumps(_trim(agent.messages, limit), default=str))}), conv["id"]))
+    if flag.get("issue"):  # always link the hand-off issue, whatever the model wrote
+        i = flag["issue"]
+        reply += f"\n\n📝 *Hand-off issue #{i['number']}*{i['assigned']}: {i['url']}\n• PR #{i['pr']}" + (f" · preview {i['preview']}" if i["preview"] else "")
     if flag.get("diff"):  # always show the exact diff the approver is approving, whatever the model wrote
         reply = ("📝 *Proposed, not applied yet.* *Approve* opens a pull request with a live preview; "
                  "nothing is merged or deployed.\n\n" + reply +
