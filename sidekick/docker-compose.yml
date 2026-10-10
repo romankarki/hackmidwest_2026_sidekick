@@ -31,6 +31,7 @@ services:
       SIDEKICK_OWNER_NAME: ${SIDEKICK_OWNER_NAME:-Owner}
       SIDEKICK_OWNER_EMAIL: ${SIDEKICK_OWNER_EMAIL:-owner@example.com}
       SIDEKICK_PUBLIC_URL: ${SIDEKICK_PUBLIC_URL:-http://localhost:8090}   # links in replies; set on the server
+      SIDEKICK_HOSTING: ${SIDEKICK_HOSTING:-Docker (local)}   # shown by "who are you"; set on the server
       GATE_SSH_KEY: ${GATE_SSH_KEY:-}     # LKE previews kill switch (server only; see api/app/previews.py)
       GATE_HOST_KEY: ${GATE_HOST_KEY:-}
       MAX_K8S_PREVIEWS: ${MAX_K8S_PREVIEWS:-5}

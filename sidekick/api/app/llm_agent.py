@@ -17,6 +17,7 @@ after approval github_ops opens a real branch + PR) create a pending approval; s
 the human Approve button and the configured workflow.
 """
 import json
+import os
 import re
 import time
 from datetime import datetime, timedelta, timezone
@@ -26,7 +27,7 @@ import requests
 from strands import Agent, tool
 from strands.hooks import AfterToolCallEvent, BeforeToolCallEvent, HookProvider
 
-from . import db, github_ops, integrations, models
+from . import db, github_ops, integrations, inventory, models
 
 TIMEOUT = 10
 MAX_TOOL_TEXT = 6000  # keep tool results small enough for the model's context
@@ -51,6 +52,10 @@ How you work:
   `file_review_issue` right away (it defaults to this conversation's PR; pass their words as `notes`). Only when asked.
 - Production problems: ShopLite runs on Akamai Cloud and ships metrics to Amazon CloudWatch (namespace ShopLite/Akamai).
   Start with `cloudwatch_shoplite_overview` and `cloudwatch_alarms`, correlate with `github_recent_commits`, then propose a fix.
+- Infra questions ("what's running", "what services do we have", "what does it cost", "usage this month"): call
+  `infra_inventory` and/or `infra_costs` and answer per cloud (Akamai Cloud, AWS) with names, counts and dollar amounts.
+- Identity questions ("who are you", "where are you from", "how do I configure you"): call `sidekick_about` and answer
+  with the dashboard URL and the configure links, the model you run on, and where you're hosted.
 - If an integration isn't connected, say which one in one line and continue with what you can check.
 - Never claim a change was made before it was approved and executed. After proposing, say "Proposed …" and that
   approving opens a pull request with a live preview — it does not merge or deploy anything.
@@ -438,6 +443,63 @@ def akamai_property_caching_rules(property_name: str) -> str:
     return _clip({"property": property_name, "version": p["latestVersion"], "caching_behaviors": found})
 
 
+@tool
+def infra_inventory() -> str:
+    """Everything running on the clouds Sidekick is connected to: Akamai Cloud (VMs, LKE Kubernetes clusters,
+    NodeBalancers, firewalls) and AWS (EC2, Lambda, S3, CloudWatch dashboards/alarms, IAM users), plus costs.
+    Use for "what's running", "what services do we have", "show our infra"."""
+    out = {}
+    for name, fn in (("akamai_cloud", inventory.akamai_cloud), ("aws", inventory.aws)):
+        try:
+            out[name] = fn()
+        except Exception as e:  # noqa: BLE001
+            out[name] = {"error": f"{e.__class__.__name__}: {str(e)[:200]}"}
+    for k, v in out.items():
+        if v.get("configured") is False:
+            out[k] = f"not connected (Sidekick → Integrations → {integrations.CATALOG[k]['name']})"
+    return _clip(out)
+
+
+@tool
+def infra_costs() -> str:
+    """What the infrastructure costs: Akamai Cloud month-to-date usage, monthly run rate and remaining promo credit;
+    AWS month-to-date cost by service, rest-of-month forecast and budgets. Use for "what are we spending", "usage costs"."""
+    out = {}
+    try:
+        ac = inventory.akamai_cloud()
+        out["akamai_cloud"] = ac["costs"] if ac.get("configured") else "not connected (Integrations → Akamai Cloud)"
+    except Exception as e:  # noqa: BLE001
+        out["akamai_cloud"] = {"error": str(e)[:200]}
+    out["aws"] = inventory.aws_costs()
+    if isinstance(out["aws"], dict) and out["aws"].get("configured") is False:
+        out["aws"] = "not connected (Integrations → AWS)"
+    return _clip(out)
+
+
+@tool
+def sidekick_about() -> str:
+    """Who/what Sidekick is: its dashboard URL (where to configure it), where it is hosted, the model it runs on,
+    connected integrations, channels and capabilities. Use for "who are you", "where are you from", "how do I configure you"."""
+    public = os.getenv("SIDEKICK_PUBLIC_URL", "http://localhost:8090").rstrip("/")
+    name = (db.one("SELECT value FROM settings WHERE key = 'agent_name'") or {}).get("value") or "Sidekick"
+    connected = [integrations.CATALOG[r["key"]]["name"] for r in db.all("SELECT key FROM integrations WHERE status = 'connected'")
+                 if r["key"] in integrations.CATALOG]
+    mcp = public.replace("://sidekick.", "://mcp.") + "/mcp" if "://sidekick." in public else None
+    return _clip({
+        "name": name, "dashboard": public, "hosted_on": os.getenv("SIDEKICK_HOSTING", "Docker (local)"),
+        "model": models.label(models.resolve(None)), "connected_integrations": connected,
+        "channels": {"slack": "@" + name.lower() + " in Slack", "devrev_mcp": mcp, "dashboard_console": f"{public}/#ask"},
+        "configure": {"integrations / keys": f"{public}/#integrations", "model & brain mode": f"{public}/#model",
+                      "custom replies": f"{public}/#replies", "access & approvers": f"{public}/#access",
+                      "PR previews (kill switch)": f"{public}/#previews", "runs & approvals": f"{public}/#runs"},
+        "can_do": ["investigate production (CloudWatch metrics + alarms for ShopLite on Akamai)",
+                   "read code and propose PRs with a live preview on Akamai LKE (human approval first)",
+                   "file a hand-off GitHub issue for a developer when asked",
+                   "inventory and costs across Akamai Cloud and AWS",
+                   "answer infra questions with live data"],
+        "source": "github.com/romankarki/hackmidwest_2026_sidekick"})
+
+
 def make_file_review_issue(conv, actor, flag):
     @tool
     def file_review_issue(pr_number: int = 0, notes: str = "", follow_ups: list[str] | None = None, assignee: str = "") -> str:
@@ -502,11 +564,11 @@ def make_request_approval(conv, actor, flag):
 
 
 READ_TOOLS = [shoplite_health, shoplite_route_latency, shoplite_catalog_cache_headers, prometheus_query, cloudwatch_shoplite_overview,
-              cloudwatch_alarms, cloudwatch_metric,
+              cloudwatch_alarms, cloudwatch_metric, infra_inventory, infra_costs, sidekick_about,
               eks_cluster_status, github_recent_commits, github_commit_diff, github_list_files, github_read_file, github_search_code,
               akamai_list_properties, akamai_property_caching_rules]
 TOOL_INTEGRATION = {"shoplite_health": "shoplite", "shoplite_route_latency": "shoplite", "shoplite_catalog_cache_headers": "shoplite",
-                    "prometheus_query": "prometheus", "cloudwatch_metric": "aws", "cloudwatch_shoplite_overview": "aws", "cloudwatch_alarms": "aws", "eks_cluster_status": "aws", "github_recent_commits": "github",
+                    "prometheus_query": "prometheus", "cloudwatch_metric": "aws", "cloudwatch_shoplite_overview": "aws", "cloudwatch_alarms": "aws", "infra_inventory": "akamai_cloud", "infra_costs": "akamai_cloud", "eks_cluster_status": "aws", "github_recent_commits": "github",
                     "github_commit_diff": "github", "github_list_files": "github", "github_read_file": "github", "github_search_code": "github",
                     "propose_code_change": "github", "file_review_issue": "github", "akamai_list_properties": "akamai", "akamai_property_caching_rules": "akamai"}
 
