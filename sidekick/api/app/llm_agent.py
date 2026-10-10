@@ -617,6 +617,18 @@ def build_model(r):
     return AnthropicModel(client_args={"api_key": key}, model_id=r["model_id"], max_tokens=r["max_tokens"], params=params)
 
 
+def _clean_tool_input(raw):
+    """A tool input Bedrock accepts: a JSON object whose keys are real argument names."""
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw) if raw.strip() else {}
+        except ValueError:
+            raw = {}
+    if not isinstance(raw, dict):
+        return {}
+    return {k: v for k, v in raw.items() if isinstance(k, str) and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", k)}
+
+
 # ---------- live step reporting ----------
 class StepReporter(HookProvider):
     """Writes every tool call into runs.steps as it starts / finishes (Slack + dashboard poll this)."""
@@ -633,31 +645,20 @@ class StepReporter(HookProvider):
         db.run("UPDATE runs SET steps = %s WHERE id = %s", (db.J(self.steps), self.run_id))
 
     def sanitize_history(self, event):
-        """Before every model call: every toolUse.input in the history must be a JSON object (Bedrock rejects anything
-        else). gpt-oss sometimes emits "" or a JSON string for argument-less tools."""
+        """Before every model call: every toolUse.input in the history must be a JSON object with real argument names
+        (Bedrock rejects anything else). gpt-oss sometimes emits "", a JSON string, or {"": {}} for argument-less tools."""
         for m in event.agent.messages:
             for c in m.get("content", []):
                 tu = c.get("toolUse") if isinstance(c, dict) else None
-                if tu is not None and not isinstance(tu.get("input"), dict):
-                    raw = tu.get("input")
-                    try:
-                        parsed = json.loads(raw) if isinstance(raw, str) and raw.strip() else {}
-                    except ValueError:
-                        parsed = {}
-                    print(f"[llm] normalised toolUse.input for {tu.get('name')}: {type(raw).__name__} {str(raw)[:60]!r}", flush=True)
-                    tu["input"] = parsed if isinstance(parsed, dict) else {}
+                if tu is not None:
+                    clean = _clean_tool_input(tu.get("input"))
+                    if clean != tu.get("input"):
+                        print(f"[llm] normalised toolUse.input for {tu.get('name')}: {str(tu.get('input'))[:60]!r} → {clean}", flush=True)
+                        tu["input"] = clean
 
     def before(self, event):
         tu = event.tool_use
-        if not isinstance(tu.get("input"), dict):
-            # some models (e.g. gpt-oss) emit "" / null for argument-less tools; Bedrock then rejects the whole
-            # conversation ("toolUse.input … Provide a json object"). Normalise in place — this also fixes the history.
-            raw = tu.get("input")
-            try:
-                parsed = json.loads(raw) if isinstance(raw, str) and raw.strip() else {}
-            except ValueError:
-                parsed = {}
-            tu["input"] = parsed if isinstance(parsed, dict) else {}
+        tu["input"] = _clean_tool_input(tu.get("input"))  # see sanitize_history
         args = ", ".join(f"{k}={json.dumps(v)[:60]}" for k, v in (tu.get("input") or {}).items())
         integ = TOOL_INTEGRATION.get(tu["name"])
         self.started[tu["toolUseId"]] = (len(self.steps), time.perf_counter())
