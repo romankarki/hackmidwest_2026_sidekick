@@ -68,6 +68,22 @@ BUDGET_NAME="My Monthly Cost Budget" bash deploy/aws-setup.sh <vm-ip>   # or BUD
 - **Why not Claude:** on a new account, Claude needs the one-time Anthropic use-case form (Bedrock → Model catalog → any Claude model).
 - **Why not the newest models:** Claude Sonnet/Opus 5 and GPT-5.6 Terra can be "not available for this account" until AWS enables them. Test the candidates with `aws bedrock-runtime converse` before switching.
 
+## Inventory and costs ("what's running / what does it cost")
+
+Sidekick answers infra questions from live data in **both clouds**:
+- `infra_inventory`: VMs, LKE, NodeBalancers and firewalls, each with what it's for; AWS EC2, Lambda, S3, CloudWatch and IAM.
+- `infra_costs`: Akamai month-to-date usage, run rate and promo credit; AWS cost by service, forecast and budgets.
+- `sidekick_about`: dashboard URL, configure links, hosting, model and integrations.
+
+**Credentials (both read-only):**
+- **Akamai Cloud:** a read-only Linode token in Integrations → *Akamai Cloud*:
+  ```bash
+  linode-cli profile token-create --label sidekick-readonly --expiry 2027-01-01T00:00:00     --scopes "account:read_only linodes:read_only lke:read_only nodebalancers:read_only firewall:read_only"
+  ```
+- **AWS:** the `sidekick-agent` policy (`deploy/aws-setup.sh`) includes `ce:GetCostAndUsage`, `ce:GetCostForecast`, `budgets:ViewBudget` and list/describe for EC2, Lambda, S3, CloudWatch dashboards and IAM users.
+
+Cost Explorer charges $0.01 per call, so results are cached for 1 hour.
+
 ## Kill switch and flood guard
 
 - **Flood guard:** at most **5** LKE previews run at once (`MAX_K8S_PREVIEWS`). Extra PRs get a PR comment saying the limit was hit, instead of a preview.
