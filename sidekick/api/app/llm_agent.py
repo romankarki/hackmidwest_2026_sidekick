@@ -44,7 +44,8 @@ How you work:
 - Prefer what already exists: if the feature is already implemented behind a flag, enable it instead of rebuilding it.
 - Code changes: find the code (`github_search_code` / `github_list_files`), read it (`github_read_file`), then call
   `propose_code_change` ONCE with all edits. Each `find` is copied exactly from the file; an empty `find` creates a new
-  file. Keep changes minimal and in the repo's style. After approval Sidekick opens the PR and a live preview.
+  file. Keep changes minimal and in the repo's style. Pass your `assumptions` and concrete `follow_ups` for the developer:
+  after approval Sidekick opens the PR with a live preview and files a GitHub issue handing it to a developer.
 - Production problems: ShopLite runs on Akamai Cloud and ships metrics to Amazon CloudWatch (namespace ShopLite/Akamai).
   Start with `cloudwatch_shoplite_overview` and `cloudwatch_alarms`, correlate with `github_recent_commits`, then propose a fix.
 - If an integration isn't connected, say which one in one line and continue with what you can check.
@@ -341,9 +342,11 @@ def github_search_code(query: str) -> str:
 
 def make_propose_code_change(conv, actor, flag):
     @tool
-    def propose_code_change(title: str, summary: str, edits: list[dict]) -> str:
+    def propose_code_change(title: str, summary: str, edits: list[dict], assumptions: list[str] | None = None,
+                            follow_ups: list[str] | None = None) -> str:
         """Propose a code change to the ShopLite repo for human approval. After approval Sidekick creates a branch,
-        commits exactly these edits and opens a pull request. Read the files first: each `find` must be copied exactly
+        commits exactly these edits, opens a pull request with a live preview, and files a GitHub issue handing the work
+        to a developer (review in the preview, build on top). Read the files first: each `find` must be copied exactly
         from github_read_file and must occur exactly once in that file.
 
         Args:
@@ -351,6 +354,8 @@ def make_propose_code_change(conv, actor, flag):
             summary: What changes and why (1-3 sentences); becomes the PR description
             edits: List of {"path": "web/public/index.html", "find": "exact existing text", "replace": "new text"};
                 use "find": "" to create a new file with content "replace"
+            assumptions: Short list of assumptions you made (e.g. "web only", "reused the existing swipe flag")
+            follow_ups: Short list of concrete next steps for the developer (edge cases, tests, polish, related work)
         """
         try:
             prepared = github_ops.prepare_edits(edits)
@@ -361,7 +366,8 @@ def make_propose_code_change(conv, actor, flag):
         db.run("UPDATE approvals SET status = 'rejected', decided_by = 'superseded' WHERE conversation_id = %s AND status = 'pending'", (conv["id"],))
         db.run("INSERT INTO approvals (conversation_id, title, summary, requested_by) VALUES (%s, %s, %s, %s)",
                (conv["id"], f"PR: {title}"[:200], f"{summary}\n\n{diff}"[:4000], actor.get("name") or actor.get("id")))
-        change = {"title": title[:200], "summary": summary[:2000], "edits": edits, "requested_by": actor.get("name") or actor.get("id")}
+        change = {"title": title[:200], "summary": summary[:2000], "edits": edits, "requested_by": actor.get("name") or actor.get("id"),
+                  "assumptions": [str(a)[:300] for a in (assumptions or [])][:8], "follow_ups": [str(f)[:300] for f in (follow_ups or [])][:8]}
         db.run("UPDATE conversations SET context = context || %s WHERE id = %s",
                (db.J({"code_change": change, "approval_title": f"PR: {title}"[:200], "approval_plan": plan}), conv["id"]))
         flag["requested"] = True

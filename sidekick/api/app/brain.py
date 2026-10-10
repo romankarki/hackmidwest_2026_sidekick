@@ -371,15 +371,23 @@ def _ship_code_change(conv, change, step):
     db.run("UPDATE conversations SET context = context - 'code_change' - 'approval_title' - 'approval_plan' WHERE id = %s", (conv["id"],))
     set_status(conv["id"], "pr_open")
     actions = [{"id": "open", "label": f"🔗 View PR #{pr['number']}", "url": pr["url"], "style": "primary"}]
-    preview = ""
+    preview, url = "", None
     cfg = integrations.creds("shoplite")  # PR previews may live elsewhere (LKE) than the demo previews (VM)
     template = cfg.get("pr_preview_url_template") or cfg.get("preview_url_template") or ""
     if template.startswith("https://"):  # hosted: the repo's PR-preview workflow builds every PR at pr-<number>.<host>
         url = template.format(label=f"pr-{pr['number']}", branch=pr["branch"], port="")
         preview = f"\n• Preview on Akamai LKE (ready in ~3–4 min, built by GitHub Actions): {url}"
         actions.append({"id": "open", "label": f"🔍 Open preview pr-{pr['number']}", "url": url})
+    handoff = ""
+    try:  # hand the work to a developer: review in the preview, build on top of it
+        issue = step("github.create_issue", f"review & follow-ups for #{pr['number']}", lambda: github_ops.open_review_issue(change, pr, url))
+        who = f" (assigned to @{issue['assignee']})" if issue["assignee"] else ""
+        handoff = f"\n• Developer hand-off: issue #{issue['number']}{who}: {issue['url']}"
+        actions.append({"id": "open", "label": f"📝 Issue #{issue['number']}", "url": issue["url"]})
+    except Exception:  # noqa: BLE001 — the PR is what matters; a failed issue is reported in the run steps
+        handoff = "\n• ⚠️ Couldn't file the developer hand-off issue (see the run steps)"
     return (f"✅ *Pull request #{pr['number']} opened* on `{pr['repo']}`: {change['title']}\n"
-            f"• Branch `{pr['branch']}` → `{pr['base']}`\n• Review and merge it on GitHub: {pr['url']}{preview}", actions)
+            f"• Branch `{pr['branch']}` → `{pr['base']}`\n• Review and merge it on GitHub: {pr['url']}{preview}{handoff}", actions)
 
 
 # ---------- runs whose steps do real work (not simulated) ----------
