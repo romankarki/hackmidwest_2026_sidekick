@@ -1,0 +1,11 @@
+# Secrets: never commit
+.env
+**/teammates.json
+
+# Enterprise-Bench data is canary-marked: never commit or redistribute it
+devrev-mcp/data/
+
+# Local environments and caches
+.venv/
+__pycache__/
+*.pyc

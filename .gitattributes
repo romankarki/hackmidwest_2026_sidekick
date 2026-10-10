@@ -1,0 +1,4 @@
+# keep shell scripts and container files LF so they run inside Linux containers / Git Bash
+*.sh   text eol=lf
+*.sql  text eol=lf
+Dockerfile text eol=lf
