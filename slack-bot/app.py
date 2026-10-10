@@ -45,6 +45,35 @@ def actor(client, uid):
     return {"source": "slack", "id": uid, "name": user_name(client, uid)}
 
 
+def event_actor(client, event):
+    """People, or another bot (e.g. DevRev handing work to Sidekick) — bot messages have no `user`."""
+    if event.get("user"):
+        return actor(client, event["user"])
+    name = (event.get("bot_profile") or {}).get("name") or event.get("username") or "a bot"
+    return {"source": "slack", "id": event.get("bot_id", "bot"), "name": f"{name} (bot)"}
+
+
+def from_me(event):
+    return event.get("bot_id") == ME.get("bot_id") or event.get("user") == ME.get("user_id")
+
+
+def thread_context(client, channel, event, limit=12):
+    """Earlier messages in this thread (people and other bots like DevRev, not Sidekick's own run cards), oldest first."""
+    if not event.get("thread_ts"):
+        return ""
+    try:
+        msgs = client.conversations_replies(channel=channel, ts=event["thread_ts"], limit=50)["messages"]
+    except Exception:  # noqa: BLE001 — context is a bonus; never block the reply
+        return ""
+    lines = []
+    for m in msgs:
+        if m.get("ts") == event.get("ts") or from_me(m) or not (m.get("text") or "").strip():
+            continue
+        who = user_name(client, m["user"]) if m.get("user") else ((m.get("bot_profile") or {}).get("name") or "bot")
+        lines.append(f"{who}: {m['text'].strip()[:700]}")
+    return "\n".join(lines[-limit:])
+
+
 # ---------- rendering ----------
 def _sections(text):
     chunks, cur = [], ""
@@ -150,9 +179,12 @@ def conv_thread(channel, message_thread_ts, message_ts):
 # ---------- events ----------
 @app.event("app_mention")
 def on_mention(event, client):
+    if from_me(event):
+        return  # never react to our own messages (no bot loops)
     ch, thread = event["channel"], conv_thread(event["channel"], event.get("thread_ts"), event["ts"])
     safe(client, ch, thread, lambda: api("POST", "/api/agent/message", {
-        "source": "slack", "channel": ch, "thread_ts": thread, "text": event.get("text", ""), "actor": actor(client, event["user"])}))
+        "source": "slack", "channel": ch, "thread_ts": thread, "text": event.get("text", ""), "actor": event_actor(client, event),
+        "thread_context": thread_context(client, ch, event)}))
 
 
 @app.event("message")
