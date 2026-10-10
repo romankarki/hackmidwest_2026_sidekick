@@ -1,0 +1,44 @@
+{
+  "teammates": [
+    {
+      "token": "change-me-roman",
+      "name": "Your Name",
+      "email": "you@example.com",
+      "role": "Owner",
+      "maple_user_id": null,
+      "accounts": "all",
+      "see_arr": true,
+      "can_approve": true
+    },
+    {
+      "token": "change-me-alex",
+      "name": "Alex Morgan",
+      "email": "alex.morgan@maple.example",
+      "role": "Support lead",
+      "maple_user_id": "USER-001",
+      "accounts": "all",
+      "see_arr": true,
+      "can_approve": false
+    },
+    {
+      "token": "change-me-marcus",
+      "name": "Marcus Webb",
+      "email": "marcus.webb@maple.example",
+      "role": "Account executive",
+      "maple_user_id": "USER-032",
+      "accounts": "owned",
+      "see_arr": true,
+      "can_approve": false
+    },
+    {
+      "token": "change-me-rahul",
+      "name": "Rahul Nair",
+      "email": "rahul.nair@maple.example",
+      "role": "Engineer",
+      "maple_user_id": "USER-062",
+      "accounts": "all",
+      "see_arr": false,
+      "can_approve": false
+    }
+  ]
+}

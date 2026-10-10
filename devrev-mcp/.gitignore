@@ -1,0 +1,5 @@
+# Enterprise-Bench data is canary-marked: never commit or redistribute it
+data/
+# personal connector tokens
+teammates.json
+__pycache__/
