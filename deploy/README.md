@@ -42,9 +42,9 @@ GITHUB_TOKEN=<token> python deploy/set-github-secrets.py <ip>   # enables deploy
   - Push or merge to `master` → the *Deploy ShopLite* workflow rebuilds https://shop.\<host\>.
   - Open a PR → the *PR preview* workflow deploys it to LKE at https://pr-\<n\>.\<lke-host\> and comments the link. Each push updates it; closing the PR deletes the namespace.
 - **Sidekick:** push to `master` → the *Deploy Sidekick* workflow rebuilds the API, dashboard, Slack bot and DevRev connector.
-- **Sidekick's own PRs:** "@sidekick change … and raise a PR" → Approve → PR → preview link (about 2–3 min) → merge → live on shop.\<host\>.
+- **Sidekick's own PRs:** "@sidekick change … and raise a PR" → Approve → PR → LKE preview link (about 3–4 min) → merge → live on shop.\<host\>.
 
-The deploy key can't open a shell. It can only run the four commands in `gate.sh`. The server copy of `gate.sh` is root-owned and installed by `bootstrap.sh`, so a push can't widen it. Re-run `provision.sh` to update the gate.
+The keys can't open a shell: each can only run its role's commands in `gate.sh` (ci: deploys and previews; dashboard: list and delete previews). The server copy of `gate.sh` is root-owned and installed by `bootstrap.sh`, so a push can't widen it. Re-run `provision.sh` to update the gate.
 
 ## Kill switch and flood guard
 
@@ -70,7 +70,7 @@ cat /etc/caddy/Caddyfile; ls /etc/caddy/sites/             # routes
 
 ## Costs and cleanup
 
-The VM bills hourly, and **a powered-off VM still bills**. The $300 HackMidwest credit covers about 6 months of this VM; it expires 2027-01-01. To stop all charges:
+The VM bills hourly, and **a powered-off VM still bills**. The VM plus LKE cost about $82/mo together; the $300 HackMidwest credit expires 2027-01-01, so it covers them until then. To stop all charges:
 
 ```bash
 linode-cli linodes list                        # find the id of sidekick-prod
