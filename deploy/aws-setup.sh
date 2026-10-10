@@ -32,7 +32,10 @@ cat > "$TMP/agent.json" <<EOF
     "bedrock-mantle:CreateInference", "bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream",
     "bedrock:ListFoundationModels", "bedrock:ListInferenceProfiles"]},
   {"Sid": "ReadCloudWatch", "Effect": "Allow", "Resource": "*", "Action": [
-    "cloudwatch:GetMetricData", "cloudwatch:GetMetricStatistics", "cloudwatch:ListMetrics", "cloudwatch:DescribeAlarms"]}]}
+    "cloudwatch:GetMetricData", "cloudwatch:GetMetricStatistics", "cloudwatch:ListMetrics", "cloudwatch:DescribeAlarms"]},
+  {"Sid": "InventoryAndCostsReadOnly", "Effect": "Allow", "Resource": "*", "Action": [
+    "ce:GetCostAndUsage", "ce:GetCostForecast", "budgets:ViewBudget", "ec2:DescribeInstances", "lambda:ListFunctions",
+    "s3:ListAllMyBuckets", "cloudwatch:ListDashboards", "iam:ListUsers"]}]}
 EOF
 cat > "$TMP/shipper.json" <<EOF
 {"Version": "2012-10-17", "Statement": [{"Sid": "PutShopLiteMetricsOnly", "Effect": "Allow", "Action": "cloudwatch:PutMetricData",
