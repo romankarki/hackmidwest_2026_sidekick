@@ -370,9 +370,15 @@ def _ship_code_change(conv, change, step):
     pr = github_ops.open_pr(change, step)
     db.run("UPDATE conversations SET context = context - 'code_change' - 'approval_title' - 'approval_plan' WHERE id = %s", (conv["id"],))
     set_status(conv["id"], "pr_open")
+    actions = [{"id": "open", "label": f"🔗 View PR #{pr['number']}", "url": pr["url"], "style": "primary"}]
+    preview = ""
+    template = integrations.creds("shoplite").get("preview_url_template") or ""
+    if template.startswith("https://"):  # hosted: the repo's PR-preview workflow builds every PR at pr-<number>.<host>
+        url = template.format(label=f"pr-{pr['number']}", branch=pr["branch"], port="")
+        preview = f"\n• Preview (ready in ~2–3 min, built by GitHub Actions): {url}"
+        actions.append({"id": "open", "label": f"🔍 Open preview pr-{pr['number']}", "url": url})
     return (f"✅ *Pull request #{pr['number']} opened* on `{pr['repo']}`: {change['title']}\n"
-            f"• Branch `{pr['branch']}` → `{pr['base']}`\n• Review and merge it on GitHub: {pr['url']}",
-            [{"id": "open", "label": f"🔗 View PR #{pr['number']}", "url": pr["url"], "style": "primary"}])
+            f"• Branch `{pr['branch']}` → `{pr['base']}`\n• Review and merge it on GitHub: {pr['url']}{preview}", actions)
 
 
 # ---------- runs whose steps do real work (not simulated) ----------
