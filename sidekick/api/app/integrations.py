@@ -72,6 +72,8 @@ CATALOG = {
             {"k": "token", "label": "Personal access token", "type": "secret", "placeholder": "github_pat_… / ghp_…", "help": "Fine-grained PAT with Contents + Pull requests read/write on the repo."},
             {"k": "repo", "label": "Repository", "type": "text", "placeholder": "owner/shoplite"},
             {"k": "base_branch", "label": "Base branch", "type": "text", "default": "main"},
+            {"k": "issue_assignee", "label": "Review issue assignee (optional)", "type": "text", "placeholder": "github-username",
+             "help": "Every PR Sidekick opens also gets a hand-off issue (preview link, assumptions, review checklist, follow-ups) assigned to this developer. Needs Issues read/write on the token."},
         ],
     },
     "shoplite": {

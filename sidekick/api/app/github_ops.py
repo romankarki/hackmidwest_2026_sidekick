@@ -169,4 +169,77 @@ def open_pr(change, step):
             f"```diff\n{prepared['diff'][:60000]}\n```\n\n_Opened by Sidekick after human approval._")
     pr = step("github.create_pull_request", f"{branch} → {base}",
               lambda: _call("POST", f"/repos/{repo}/pulls", h, json={"title": change["title"], "head": branch, "base": base, "body": body}))
-    return {"url": pr["html_url"], "number": pr["number"], "branch": branch, "repo": repo, "base": base}
+    return {"url": pr["html_url"], "number": pr["number"], "branch": branch, "repo": repo, "base": base, "body": body,
+            "diff": prepared["diff"], "files": list(prepared["files"])}
+
+
+# ---------- hand-off issue: a developer reviews the PR and builds on top of it ----------
+LABELS = {"sidekick": ("6f42c1", "Opened by Sidekick"), "needs-review": ("fbca04", "A developer should review and take this further")}
+
+
+def _ensure_labels(repo, h):
+    for name, (color, desc) in LABELS.items():
+        r = requests.post(f"{API}/repos/{repo}/labels", headers=h, timeout=TIMEOUT, json={"name": name, "color": color, "description": desc})
+        if r.status_code not in (201, 422):  # 422 = already exists
+            raise GitHubError(f"GitHub create label {name} → HTTP {r.status_code}")
+
+
+def open_review_issue(change, pr, preview_url=None):
+    """GitHub issue asking a developer to review the PR in its preview and build on top of it. Links PR ↔ issue.
+    Assignee: Integrations → GitHub → 'Review issue assignee' (optional GitHub username)."""
+    repo, base, h = config()
+    assignee = (integrations.creds("github").get("issue_assignee") or "").strip().lstrip("@")
+    files = "\n".join(f"- `{f}`" for f in pr["files"])
+    assumptions = "\n".join(f"- {a}" for a in change.get("assumptions") or []) or "- None stated"
+    follow_ups = "\n".join(f"- [ ] {f}" for f in change.get("follow_ups") or []) or "- [ ] Anything the preview shows is missing"
+    body = f"""Sidekick opened **#{pr['number']}** ({change['title']}). It is a first pass: please review it in the live preview and build on top of it.
+
+| | |
+|---|---|
+| **Pull request** | #{pr['number']} · branch `{pr['branch']}` → `{pr['base']}` |
+| **Preview** | {preview_url or "_no preview configured_"} |
+| **Requested by** | {change.get('requested_by', '?')} · approved by {change.get('approved_by', '?')} |
+
+### What changed and why
+{change.get('summary', '')}
+
+**Files:**
+{files}
+
+### Assumptions Sidekick made
+{assumptions}
+
+### Review checklist
+- [ ] Open the preview{f" ({preview_url})" if preview_url else ""} and try the change end to end
+- [ ] Check light and dark mode, and a narrow (mobile) window
+- [ ] Read the diff in #{pr['number']}; push fixes to `{pr['branch']}` (the preview rebuilds on every push)
+- [ ] Merge #{pr['number']} when it's right; merging deploys to production
+
+### Suggested follow-ups
+{follow_ups}
+
+<details><summary>Diff Sidekick proposed</summary>
+
+```diff
+{pr['diff'][:30000]}
+```
+</details>
+
+_Filed by Sidekick so a developer can take this further. Closes when #{pr['number']} merges._"""
+    _ensure_labels(repo, h)
+    payload = {"title": f"Review & build on: {change['title']} (#{pr['number']})", "body": body, "labels": list(LABELS)}
+    if assignee:
+        payload["assignees"] = [assignee]
+    try:
+        issue = _call("POST", f"/repos/{repo}/issues", h, json=payload)
+    except GitHubError:
+        if not assignee:
+            raise
+        payload.pop("assignees")  # not a collaborator / typo: still file the issue, unassigned
+        payload["body"] += f"\n\n_Could not assign @{assignee} (not a collaborator on this repo?)._"
+        issue = _call("POST", f"/repos/{repo}/issues", h, json=payload)
+        assignee = ""
+    # link back: the PR closes the issue when it merges, and shows where the follow-up lives
+    _call("PATCH", f"/repos/{repo}/pulls/{pr['number']}", h,
+          json={"body": f"{pr['body']}\n\nCloses #{issue['number']} (review & follow-ups for a developer)."})
+    return {"url": issue["html_url"], "number": issue["number"], "assignee": assignee or None}
