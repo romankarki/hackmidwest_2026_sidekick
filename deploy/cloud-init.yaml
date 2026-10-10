@@ -1,0 +1,36 @@
+#cloud-config
+# First boot of the Akamai Cloud (Linode) VM: Docker, Caddy (HTTPS reverse proxy), a `deploy` user for GitHub Actions,
+# key-only SSH. The app itself is installed afterwards by deploy/bootstrap.sh.
+package_update: true
+package_upgrade: true
+packages: [ca-certificates, curl, git, gnupg, debian-keyring, debian-archive-keyring, apt-transport-https, unzip, jq]
+
+users:
+  - default
+  - name: deploy
+    shell: /bin/bash
+    lock_passwd: true
+
+write_files:
+  - path: /etc/ssh/sshd_config.d/10-hardening.conf
+    content: |
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      PermitRootLogin prohibit-password
+
+runcmd:
+  # Docker Engine + compose plugin (official repo)
+  - install -m 0755 -d /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  - echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" > /etc/apt/sources.list.d/docker.list
+  # Caddy (automatic HTTPS)
+  - curl -1sLf https://dl.cloudsmith.io/public/caddy/stable/gpg.key | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+  - curl -1sLf https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt -o /etc/apt/sources.list.d/caddy-stable.list
+  - apt-get update
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin caddy
+  - usermod -aG docker deploy
+  - mkdir -p /opt/apps /etc/caddy/sites && chown deploy:deploy /opt/apps
+  - systemctl enable --now docker caddy
+  - systemctl restart ssh
+  # 2 GB swap so parallel Docker builds don't OOM
+  - fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile && echo '/swapfile none swap sw 0 0' >> /etc/fstab
