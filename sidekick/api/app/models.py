@@ -199,6 +199,26 @@ def _test_openai(r):
                   "input_tokens": u.input_tokens if u else 0, "output_tokens": u.output_tokens if u else 0, "label": label(r)}
 
 
+def _test_converse(r):
+    """Bedrock Converse API (bedrock-runtime), e.g. with a cross-region inference profile like us.anthropic.claude-haiku-4-5-…
+    Some accounts can only reach Claude this way: the Messages API (Mantle) answers 'not available for this account'."""
+    from botocore.exceptions import BotoCoreError, ClientError
+    t0 = time.perf_counter()
+    try:
+        resp = integrations._boto("bedrock-runtime", None, region=r["region"]).converse(
+            modelId=r["model_id"], messages=[{"role": "user", "content": [{"text": "Reply with exactly: Sidekick model check OK"}]}],
+            inferenceConfig={"maxTokens": 256})
+    except ClientError as e:
+        err = e.response.get("Error", {})
+        return False, {"error": f"{err.get('Code', 'Error')}: {err.get('Message', str(e))}"}
+    except BotoCoreError as e:
+        return False, {"error": f"{e.__class__.__name__}: {e}"}
+    text = next((c["text"] for c in resp["output"]["message"]["content"] if "text" in c), "")
+    u = resp.get("usage", {})
+    return True, {"text": text, "model": r["model_id"], "latency_ms": round((time.perf_counter() - t0) * 1000), "stop_reason": resp.get("stopReason"),
+                  "input_tokens": u.get("inputTokens", 0), "output_tokens": u.get("outputTokens", 0), "label": label(r) + " · Converse"}
+
+
 def test(skill=None):
     """One real, tiny request with the resolved settings. Returns (ok, details)."""
     import anthropic
@@ -207,6 +227,8 @@ def test(skill=None):
         return False, {"error": "No model ID set"}
     if family(r["provider"]) == "openai":
         return _test_openai(r)
+    if r["provider"] == "bedrock" and get_config().get("bedrock_transport") == "converse":
+        return _test_converse(r)  # the same API the agent's Strands BedrockModel uses
     body = {**request_body(r), "max_tokens": 1024,
             "messages": [{"role": "user", "content": "Reply with exactly: Sidekick model check OK"}]}
     if r["effort"]:

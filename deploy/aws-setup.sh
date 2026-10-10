@@ -2,7 +2,8 @@
 # AWS side of Sidekick: Claude on Bedrock + CloudWatch for ShopLite running on Akamai Cloud. Run from the repo root
 # after `aws login` (an admin session), with the VM from deploy/provision.sh:
 #
-#   BUDGET=50 ALERT_EMAIL=you@example.com bash deploy/aws-setup.sh <vm-ip>
+#   BUDGET=50 ALERT_EMAIL=you@example.com bash deploy/aws-setup.sh <vm-ip>      (creates budget "sidekick-hackathon")
+#   BUDGET_NAME="My Monthly Cost Budget" bash deploy/aws-setup.sh <vm-ip>          (reuses an existing budget + its alert email)
 #
 # Creates (idempotent):
 #   • a monthly cost budget with email alerts at 80% / 100%, and a budget ACTION that attaches a deny-all policy to both
@@ -14,10 +15,11 @@
 # Access keys are saved under deploy/.keys/ (gitignored). Region: us-west-2 (override with AWS_REGION).
 set -euo pipefail
 cd "$(dirname "$0")/.."
-VM="$1"; : "${BUDGET:?set BUDGET (USD per month)}"; : "${ALERT_EMAIL:?set ALERT_EMAIL for budget alerts}"
-REGION="${AWS_REGION:-us-west-2}"; NS="ShopLite/Akamai"; KEYS=deploy/.keys
+VM="$1"; BUDGET_NAME="${BUDGET_NAME:-sidekick-hackathon}"
+REGION="${AWS_REGION:-us-east-2}"; NS="ShopLite/Akamai"; KEYS=deploy/.keys
 aws() { "${AWS_CLI:-aws}" --region "$REGION" --output json "$@"; }
-PY="$(command -v python3 || command -v python || command -v py)"
+budgets() { "${AWS_CLI:-aws}" --region us-east-1 --output json budgets "$@"; }  # global service, us-east-1 endpoint
+for PY in python3 python py; do "$PY" -c "" 2>/dev/null && break; done   # first Python that really runs (Windows has Store stubs)
 key_field() { "$PY" -c "import json,sys; print(json.load(open(sys.argv[1]))['AccessKey'][sys.argv[2]])" "$@"; }  # $1 file, $2 field
 ACCOUNT="$(aws sts get-caller-identity --query Account --output text)"
 echo "✓ AWS account $ACCOUNT · $REGION"
@@ -55,21 +57,29 @@ echo '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Servi
 echo '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["iam:AttachUserPolicy","iam:DetachUserPolicy"],"Resource":"*"}]}' > "$TMP/role.json"
 aws iam get-role --role-name SidekickBudgetActions >/dev/null 2>&1 || aws iam create-role --role-name SidekickBudgetActions --assume-role-policy-document "file://$TMP/trust.json" >/dev/null
 aws iam put-role-policy --role-name SidekickBudgetActions --policy-name attach-kill-switch --policy-document "file://$TMP/role.json"
-if ! aws budgets describe-budget --account-id "$ACCOUNT" --budget-name sidekick-hackathon >/dev/null 2>&1; then
-  aws budgets create-budget --account-id "$ACCOUNT" \
-    --budget "{\"BudgetName\":\"sidekick-hackathon\",\"BudgetLimit\":{\"Amount\":\"$BUDGET\",\"Unit\":\"USD\"},\"TimeUnit\":\"MONTHLY\",\"BudgetType\":\"COST\"}" \
+if budgets describe-budget --account-id "$ACCOUNT" --budget-name "$BUDGET_NAME" >/dev/null 2>&1; then
+  BUDGET="$(budgets describe-budget --account-id "$ACCOUNT" --budget-name "$BUDGET_NAME" --query Budget.BudgetLimit.Amount --output text)"
+  if [ -z "${ALERT_EMAIL:-}" ]; then  # reuse the address the budget already alerts
+    N="$(budgets describe-notifications-for-budget --account-id "$ACCOUNT" --budget-name "$BUDGET_NAME" --query "Notifications[0]")"
+    ALERT_EMAIL="$(budgets describe-subscribers-for-notification --account-id "$ACCOUNT" --budget-name "$BUDGET_NAME" --notification "$N" \
+      --query "Subscribers[?SubscriptionType=='EMAIL'] | [0].Address" --output text)"
+  fi
+else
+  : "${BUDGET:?set BUDGET (USD per month)}"; : "${ALERT_EMAIL:?set ALERT_EMAIL for budget alerts}"
+  budgets create-budget --account-id "$ACCOUNT" \
+    --budget "{\"BudgetName\":\"$BUDGET_NAME\",\"BudgetLimit\":{\"Amount\":\"$BUDGET\",\"Unit\":\"USD\"},\"TimeUnit\":\"MONTHLY\",\"BudgetType\":\"COST\"}" \
     --notifications-with-subscribers "[
       {\"Notification\":{\"NotificationType\":\"ACTUAL\",\"ComparisonOperator\":\"GREATER_THAN\",\"Threshold\":80,\"ThresholdType\":\"PERCENTAGE\"},\"Subscribers\":[{\"SubscriptionType\":\"EMAIL\",\"Address\":\"$ALERT_EMAIL\"}]},
       {\"Notification\":{\"NotificationType\":\"FORECASTED\",\"ComparisonOperator\":\"GREATER_THAN\",\"Threshold\":100,\"ThresholdType\":\"PERCENTAGE\"},\"Subscribers\":[{\"SubscriptionType\":\"EMAIL\",\"Address\":\"$ALERT_EMAIL\"}]}]"
 fi
-if [ "$(aws budgets describe-budget-actions-for-budget --account-id "$ACCOUNT" --budget-name sidekick-hackathon --query 'length(Actions)' --output text)" = "0" ]; then
-  aws budgets create-budget-action --account-id "$ACCOUNT" --budget-name sidekick-hackathon --notification-type ACTUAL \
+if [ "$(budgets describe-budget-actions-for-budget --account-id "$ACCOUNT" --budget-name "$BUDGET_NAME" --query 'length(Actions)' --output text)" = "0" ]; then
+  budgets create-budget-action --account-id "$ACCOUNT" --budget-name "$BUDGET_NAME" --notification-type ACTUAL \
     --action-type APPLY_IAM_POLICY --action-threshold ActionThresholdValue=100,ActionThresholdType=PERCENTAGE \
     --definition "{\"IamActionDefinition\":{\"PolicyArn\":\"$KILL_ARN\",\"Users\":[\"sidekick-agent\",\"akamai-cloudwatch-shipper\"]}}" \
     --execution-role-arn "arn:aws:iam::$ACCOUNT:role/SidekickBudgetActions" --approval-model AUTOMATIC \
     --subscribers "[{\"SubscriptionType\":\"EMAIL\",\"Address\":\"$ALERT_EMAIL\"}]" >/dev/null
 fi
-echo "✓ budget sidekick-hackathon: \$$BUDGET/month, alerts to $ALERT_EMAIL, auto-deny for both Sidekick users at 100%"
+echo "✓ budget $BUDGET_NAME: \$$BUDGET/month, auto-deny for both Sidekick users at 100% (alerts to ${ALERT_EMAIL%%@*}@…)"
 
 # ---- CloudWatch: dashboard + alarms for ShopLite on Akamai ----
 m() { echo "[\"$NS\",\"$1\",\"Environment\",\"prod\",\"Route\",\"ALL\",{\"stat\":\"$2\",\"label\":\"$3\"}]"; }
