@@ -368,7 +368,8 @@ def make_propose_code_change(conv, actor, flag):
         db.run("UPDATE approvals SET status = 'rejected', decided_by = 'superseded' WHERE conversation_id = %s AND status = 'pending'", (conv["id"],))
         db.run("INSERT INTO approvals (conversation_id, title, summary, requested_by) VALUES (%s, %s, %s, %s)",
                (conv["id"], f"PR: {title}"[:200], f"{summary}\n\n{diff}"[:4000], actor.get("name") or actor.get("id")))
-        change = {"title": title[:200], "summary": summary[:2000], "edits": edits, "requested_by": actor.get("name") or actor.get("id"),
+        change = {"title": title[:200], "summary": summary[:2000], "edits": edits,
+                  "requested_by": actor.get("name") or actor.get("id") or f"{actor.get('source') or 'dashboard'} user",
                   "assumptions": [str(a)[:300] for a in (assumptions or [])][:8], "follow_ups": [str(f)[:300] for f in (follow_ups or [])][:8]}
         db.run("UPDATE conversations SET context = context || %s WHERE id = %s",
                (db.J({"code_change": change, "approval_title": f"PR: {title}"[:200], "approval_plan": plan}), conv["id"]))
@@ -466,7 +467,7 @@ def make_file_review_issue(conv, actor, flag):
         who = re.search(r"\*\*Requested by:\*\* (.+?) · \*\*Approved by:\*\* (.+?)\n", pr["body"] + "\n")
         change = {"title": mine.get("title") or pr["title"],
                   "summary": mine.get("summary") or pr["body"].split("\n\n**Requested by")[0][:1500],
-                  "assumptions": mine.get("assumptions") or [], "requested_by": mine.get("requested_by") or (who.group(1) if who else "?"),
+                  "assumptions": mine.get("assumptions") or [], "requested_by": mine.get("requested_by") or (who.group(1) if who and who.group(1) != "None" else "?"),
                   "approved_by": mine.get("approved_by") or (who.group(2) if who else "?"), "filed_by": actor.get("name") or actor.get("id") or "the reviewer",
                   "follow_ups": (mine.get("follow_ups") or []) + [str(f)[:300] for f in (follow_ups or [])][:8]}
         preview = mine.get("preview_url") or github_ops.pr_preview_url(number, pr["branch"])
