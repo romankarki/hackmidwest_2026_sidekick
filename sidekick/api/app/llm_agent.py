@@ -583,5 +583,7 @@ def run(run_id, conv, text, actor):
     db.run("UPDATE conversations SET context = context || %s, updated_at = now() WHERE id = %s",
            (db.J({"llm_messages": json.loads(json.dumps(_trim(agent.messages, limit), default=str))}), conv["id"]))
     if flag.get("diff"):  # always show the exact diff the approver is approving, whatever the model wrote
-        reply += f"\n\n*Proposed change (approve to open a PR):*\n```{flag['diff'][:2500]}```"
+        reply = ("📝 *Proposed, not applied yet.* *Approve* opens a pull request with a live preview and a hand-off issue "
+                 "for a developer; nothing is merged or deployed.\n\n" + reply +
+                 f"\n\n*Proposed change:*\n```{flag['diff'][:2500]}```")
     return reply, flag["requested"]
