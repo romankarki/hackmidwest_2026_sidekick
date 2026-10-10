@@ -101,13 +101,35 @@ built from the Model page:
 approval; **Approve** then runs the configured workflow (delivery steps still simulated). Each tool call streams into the run
 (Slack + dashboard) via Strands hooks; conversation history is kept per thread (last ~40 messages).
 
+### Code changes → real pull requests (`api/app/github_ops.py`)
+
+Example: `@sidekick rename the page title in web/public/index.html to "ShopLite Plus" and raise a PR`.
+
+1. **Find and read.** The agent finds the code with `github_search_code`, `github_list_files` and `github_read_file`, which read the repo's base branch on GitHub.
+2. **Propose.** It calls `propose_code_change` with exact find/replace edits. Sidekick checks that each `find` occurs exactly once in the current file and renders a unified diff. That diff is always appended to the reply, so the approver sees exactly what will land.
+3. **Approve.** On **Approve**, Sidekick's own code runs the GitHub calls; the model is not involved:
+   - re-check the edits against the latest base branch;
+   - create `sidekick/<slug>-<n>`;
+   - commit each file;
+   - open a PR whose body contains the diff and who requested and approved it.
+
+   The run's model column shows *GitHub API (no model)*, and Slack gets a **View PR** button.
+4. **Reject.** Nothing is created on GitHub. If a GitHub call fails, the approval goes back to pending, so you can fix the cause and approve again.
+
+This needs **Integrations → GitHub**:
+- a token with Contents and Pull requests read/write on the repo;
+- the repo as `owner/name`;
+- the correct base branch (`master` for shoplite-target).
+
+The PR flow is only in LLM mode (Brain mode → LLM agent). Merging stays with a human on GitHub.
+
 ### Go-live checklist (configuration only)
 1. **AWS credentials** → Integrations → AWS (see `docs/setup-aws.md`; enable Claude model access in Bedrock).
 2. **Configure → Model** → provider/model/region → **Test model** ✓.
 3. **Brain mode → LLM agent.** Ask in Slack: `@sidekick is checkout healthy? check latency and cache headers`.
 4. More tools light up as you connect GitHub, Akamai, Prometheus, EKS. Switch back to *Scripted demo* any time (no model cost).
 
-Next to make real: GitHub write tools (branch + commit + PR) executed **after** approval, and deploy hooks.
+Next to make real: a preview environment per PR branch, and deploy hooks after merge.
 
 ## API
 OpenAPI docs: http://localhost:8090/api/docs
