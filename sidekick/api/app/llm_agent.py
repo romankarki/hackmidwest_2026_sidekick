@@ -633,6 +633,15 @@ class StepReporter(HookProvider):
 
     def before(self, event):
         tu = event.tool_use
+        if not isinstance(tu.get("input"), dict):
+            # some models (e.g. gpt-oss) emit "" / null for argument-less tools; Bedrock then rejects the whole
+            # conversation ("toolUse.input … Provide a json object"). Normalise in place — this also fixes the history.
+            raw = tu.get("input")
+            try:
+                parsed = json.loads(raw) if isinstance(raw, str) and raw.strip() else {}
+            except ValueError:
+                parsed = {}
+            tu["input"] = parsed if isinstance(parsed, dict) else {}
         args = ", ".join(f"{k}={json.dumps(v)[:60]}" for k, v in (tu.get("input") or {}).items())
         integ = TOOL_INTEGRATION.get(tu["name"])
         self.started[tu["toolUseId"]] = (len(self.steps), time.perf_counter())
