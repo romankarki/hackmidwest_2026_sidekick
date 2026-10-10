@@ -46,6 +46,28 @@ GITHUB_TOKEN=<token> python deploy/set-github-secrets.py <ip>   # enables deploy
 
 The keys can't open a shell: each can only run its role's commands in `gate.sh` (ci: deploys and previews; dashboard: list and delete previews). The server copy of `gate.sh` is root-owned and installed by `bootstrap.sh`, so a push can't widen it. Re-run `provision.sh` to update the gate.
 
+## AWS: Bedrock model and CloudWatch for the Akamai-hosted app
+
+```bash
+aws login --region us-east-2
+BUDGET_NAME="My Monthly Cost Budget" bash deploy/aws-setup.sh <vm-ip>   # or BUDGET=50 ALERT_EMAIL=… to create one
+```
+
+**What the script creates:**
+- **IAM users:**
+  - `sidekick-agent`: Bedrock plus read-only CloudWatch. Its key goes in Sidekick → Integrations → AWS.
+  - `akamai-cloudwatch-shipper`: can only `PutMetricData` into `ShopLite/Akamai`. Its key goes in the VM's `sidekick/.env` as `CW_*`.
+- **Budget action:** a deny-all policy attached to both users when the budget hits 100%.
+- **CloudWatch:** the **ShopLite-on-Akamai** dashboard, plus alarms for p95 latency above 800 ms, more than 5 5xx errors in 5 min, and VM CPU above 85%.
+
+**How the data flows:**
+- `akamai-cloudwatch`, on the Akamai VM, ships per-minute metrics from ShopLite's Prometheus endpoint.
+- Sidekick reads them with `cloudwatch_shoplite_overview` and `cloudwatch_alarms`.
+
+**Model on Bedrock:** provider *Amazon Bedrock*, transport **Converse**, custom model ID `openai.gpt-oss-120b-1:0` (tool calling, 128K context).
+- **Why not Claude:** on a new account, Claude needs the one-time Anthropic use-case form (Bedrock → Model catalog → any Claude model).
+- **Why not the newest models:** Claude Sonnet/Opus 5 and GPT-5.6 Terra can be "not available for this account" until AWS enables them. Test the candidates with `aws bedrock-runtime converse` before switching.
+
 ## Kill switch and flood guard
 
 - **Flood guard:** at most **5** LKE previews run at once (`MAX_K8S_PREVIEWS`). Extra PRs get a PR comment saying the limit was hit, instead of a preview.
