@@ -175,6 +175,7 @@
         <a class="sb-btn" href="#ask" data-v="ask"><svg class="i" viewBox="0 0 24 24"><path d="M12 3l1.9 5.8L20 11l-6.1 2.2L12 19l-1.9-5.8L4 11l6.1-2.2z"/></svg><span class="sb-text">Ask Sidekick</span></a>
         <a class="sb-btn" href="#workflows" data-v="workflows"><svg class="i" viewBox="0 0 24 24"><rect width="8" height="8" x="3" y="3" rx="2"/><path d="M7 11v4a2 2 0 0 0 2 2h4"/><rect width="8" height="8" x="13" y="13" rx="2"/></svg><span class="sb-text">Workflows</span></a>
         <a class="sb-btn" href="#runs" data-v="runs"><svg class="i" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg><span class="sb-text">Runs &amp; approvals</span><span class="sb-badge" id="appr-count" hidden>0</span></a>
+        <a class="sb-btn" href="#previews" data-v="previews"><svg class="i" viewBox="0 0 24 24"><rect width="20" height="8" x="2" y="2" rx="2"/><rect width="20" height="8" x="2" y="14" rx="2"/><path d="M6 6h.01M6 18h.01"/></svg><span class="sb-text">Previews</span></a>
       </div>
       <div class="sb-group">
         <div class="sb-label">Configure</div>
@@ -310,7 +311,7 @@ function actionsHTML(actions) {
 }
 
 // ---------- views ----------
-const TITLES = { ask: "Ask Sidekick", workflows: "Workflows", runs: "Runs & approvals", model: "Model", skills: "Skills", replies: "Replies", integrations: "Integrations", access: "Access control", settings: "Settings" };
+const TITLES = { ask: "Ask Sidekick", workflows: "Workflows", runs: "Runs & approvals", previews: "Previews", model: "Model", skills: "Skills", replies: "Replies", integrations: "Integrations", access: "Access control", settings: "Settings" };
 const views = {
   ask() {
     return `
@@ -340,6 +341,27 @@ const views = {
             <tr class="run-detail" data-run-detail="${r.id}" ${OPEN_RUNS.has(String(r.id)) ? "" : "hidden"}><td colspan="7"><div class="agent-steps">${r.steps.map(stepHTML).join("")}</div>${r.result ? `<div class="md">${md(r.result.text)}</div>` : ""}</td></tr>`).join("")}
         </tbody></table></div>` : `<div class="card-b text-muted">No runs yet.</div>`}
       </div>`;
+  },
+
+  async previews() {
+    let data;
+    try { data = await GET("/api/previews"); }
+    catch (e) { return `${pageH("Previews", "One live environment per pull request on Akamai LKE.")}<div class="card"><div class="card-b"><div class="result err">${esc(e.message)}</div></div></div>`; }
+    const list = data.previews || [];
+    const full = list.length >= data.limit;
+    return `
+      ${pageH("Previews", "Every ShopLite pull request gets its own namespace on Akamai LKE (Kubernetes): web, api and a throwaway database. Built by GitHub Actions, removed when the PR closes. Auto-refreshes.",
+        data.configured && list.length ? `<button class="btn destructive" id="kill-all">${ic("trash")} Delete all previews</button>` : "")}
+      ${!data.configured ? `<div class="card"><div class="card-b text-muted">Previews run on the hosted Sidekick (Akamai Cloud). This copy has no deploy-gate key, so there's nothing to show here.</div></div>` : `
+      <div class="card"><div class="card-h"><div><h3>Running on LKE</h3><div class="card-desc">Limit: ${data.limit} at a time. More are refused until some are deleted, so a burst of PRs can't flood the cluster.</div></div>
+        <span class="badge ${full ? "warn" : "secondary"}">${list.length} / ${data.limit}</span></div>
+        ${list.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>PR</th><th>Branch</th><th>Commit</th><th>Created</th><th>Status</th><th></th></tr></thead><tbody>
+          ${list.map(p => `<tr><td><a href="${esc(p.url)}" target="_blank" rel="noopener" style="font-weight:500">pr-${p.pr}</a><div class="text-muted" style="font-size:12px">${esc(p.url)}</div></td>
+            <td class="mono" style="font-size:12.5px">${esc(p.branch || "")}</td><td class="mono text-muted">${esc((p.sha || "").slice(0, 7))}</td>
+            <td class="text-muted">${ago(p.created)}</td><td><span class="badge ${p.phase === "Active" ? "good" : "warn"}">${p.phase === "Active" ? "Running" : esc(p.phase || "?")}</span></td>
+            <td style="text-align:right"><button class="btn sm" data-preview-del="${p.pr}">Delete</button></td></tr>`).join("")}
+        </tbody></table></div>` : `<div class="card-b text-muted">No previews running. Open a pull request on ShopLite, or ask Sidekick to <i>change something and raise a PR</i>.</div>`}
+      </div>`}`;
   },
 
   async model() {
@@ -940,6 +962,19 @@ view.addEventListener("click", e => {
   const it1 = t.closest("[data-int-test]"); if (it1) { testIntegration(it1.dataset.intTest, it1); return; }
   const id1 = t.closest("[data-int-disconnect]");
   if (id1) { api("DELETE", `/api/integrations/${id1.dataset.intDisconnect}`).then(() => { toast("Disconnected — saved credentials deleted"); route(true); }); return; }
+  const pd = t.closest("[data-preview-del]");
+  if (pd) {
+    if (!confirm(`Delete preview pr-${pd.dataset.previewDel}? Its namespace and database are removed.`)) return;
+    pd.disabled = true; pd.textContent = "Deleting…";
+    api("DELETE", `/api/previews/${pd.dataset.previewDel}`).then(() => { toast(`pr-${pd.dataset.previewDel} deleted`); route(true); }).catch(e => { toast(e.message); route(true); });
+    return;
+  }
+  if (t.closest("#kill-all")) {
+    if (!confirm("Kill switch: delete ALL LKE previews now? Every preview namespace and its database is removed. Open PRs get a new preview on their next push.")) return;
+    const b = t.closest("#kill-all"); b.disabled = true; b.textContent = "Deleting all…";
+    api("DELETE", "/api/previews").then(r => { toast(`Kill switch: ${r.deleted} preview(s) deleted`); route(true); }).catch(e => { toast(e.message); route(true); });
+    return;
+  }
   const dec = t.closest("[data-decide]"); if (dec) { const [id, d] = dec.dataset.decide.split(":"); decideApproval(id, d, dec); return; }
   const rr = t.closest("[data-run-row]");
   if (rr) { const id = rr.dataset.runRow, row = view.querySelector(`[data-run-detail="${id}"]`); row.hidden = !row.hidden; row.hidden ? OPEN_RUNS.delete(id) : OPEN_RUNS.add(id); return; }
@@ -1165,6 +1200,7 @@ async function route(keepScroll) {
     CONSOLE_EL.querySelector("#ask-input").focus();
   }
   if (key === "workflows") renderWorkflows();
+  if (key === "previews") PAGE_TIMER = setInterval(() => { if (!document.querySelector("#kill-all:disabled, [data-preview-del]:disabled")) route(true); }, 8000);
   if (key === "runs") PAGE_TIMER = setInterval(() => { if (!document.querySelector("#int-modal")) route(true); }, 4000);
   if (keepScroll) window.scrollTo(0, y);
 }
