@@ -181,6 +181,7 @@ def cloudwatch_shoplite_overview(minutes: int = 60, environment: str = "prod") -
     end = datetime.now(timezone.utc)
     start = end - timedelta(minutes=minutes)
     period = 60 if minutes <= 180 else 300
+    per = "per_min" if period == 60 else "per_5min"  # counts are per period, NOT per second
 
     def q(qid, name, dims, stat, unit_label):
         return {"Id": qid, "Label": unit_label, "ReturnData": True, "MetricStat": {
@@ -188,30 +189,34 @@ def cloudwatch_shoplite_overview(minutes: int = 60, environment: str = "prod") -
             "Period": period, "Stat": stat}}
     env_all = {"Environment": environment, "Route": "ALL"}
     res = cw.get_metric_data(StartTime=start, EndTime=end, ScanBy="TimestampAscending", MetricDataQueries=[
-        q("req", "Requests", env_all, "Sum", "requests"), q("err", "Errors5xx", env_all, "Sum", "5xx"),
+        q("req", "Requests", env_all, "Sum", f"requests_{per}"), q("err", "Errors5xx", env_all, "Sum", f"errors_5xx_{per}"),
         q("avg", "LatencyAvg", env_all, "Average", "avg_ms"), q("p95", "LatencyP95", env_all, "Maximum", "p95_ms"),
-        q("orders", "Orders", {"Environment": environment}, "Sum", "orders"),
+        q("orders", "Orders", {"Environment": environment}, "Sum", f"orders_{per}"),
         q("cpu", "HostCPUUtilization", {"Host": "sidekick-prod"}, "Average", "cpu_pct"),
         q("mem", "HostMemoryUtilization", {"Host": "sidekick-prod"}, "Average", "mem_pct")])
     series = {r["Label"]: dict(zip((t.strftime("%H:%M") for t in r["Timestamps"]), r["Values"])) for r in res["MetricDataResults"]}
     times = sorted({t for s in series.values() for t in s})
     rows = [{"t": t, **{k: round(v[t], 1) for k, v in series.items() if t in v}} for t in times]
     summary = {k: {"max": round(max(v.values()), 1), "latest": round(v[max(v)], 1)} for k, v in series.items() if v}
-    # slowest routes by p95 over the window
-    routes = [m for m in cw.list_metrics(Namespace=CW_NAMESPACE, MetricName="LatencyP95",
-                                         Dimensions=[{"Name": "Environment", "Value": environment}])["Metrics"]
+    # per-route over the whole window: slowest (max p95) and busiest (total requests, 5xx)
+    def route_stats(metric, stat):
+        ms = [m for m in cw.list_metrics(Namespace=CW_NAMESPACE, MetricName=metric, Dimensions=[{"Name": "Environment", "Value": environment}])["Metrics"]
               if any(d["Name"] == "Route" and d["Value"] not in ("ALL", "/metrics", "/api/health") for d in m["Dimensions"])][:20]
-    slow = []
-    if routes:
+        if not ms:
+            return {}
         rr = cw.get_metric_data(StartTime=start, EndTime=end, MetricDataQueries=[
             {"Id": f"r{i}", "Label": next(d["Value"] for d in m["Dimensions"] if d["Name"] == "Route"),
-             "MetricStat": {"Metric": m, "Period": minutes * 60, "Stat": "Maximum"}} for i, m in enumerate(routes)])
-        slow = sorted(({"route": r["Label"], "p95_ms_max": round(max(r["Values"]), 1)} for r in rr["MetricDataResults"] if r["Values"]),
-                      key=lambda x: -x["p95_ms_max"])[:5]
+             "MetricStat": {"Metric": m, "Period": minutes * 60, "Stat": stat}} for i, m in enumerate(ms)])
+        return {r["Label"]: (max(r["Values"]) if stat == "Maximum" else sum(r["Values"])) for r in rr["MetricDataResults"] if r["Values"]}
+    p95s, reqs, errs = route_stats("LatencyP95", "Maximum"), route_stats("Requests", "Sum"), route_stats("Errors5xx", "Sum")
+    slow = sorted(({"route": k, "p95_ms_max": round(v, 1)} for k, v in p95s.items()), key=lambda x: -x["p95_ms_max"])[:5]
+    busy = sorted(({"route": k, f"requests_in_{minutes}min": int(v), "errors_5xx": int(errs.get(k, 0))} for k, v in reqs.items()),
+                  key=lambda x: -x[f"requests_in_{minutes}min"])[:5]
     if not rows:
         return f"No CloudWatch data in {CW_NAMESPACE} for environment {environment!r} in the last {minutes} min (is akamai-cloudwatch shipping?)."
     return _clip({"source": f"CloudWatch {CW_NAMESPACE} (shipped from Akamai Cloud)", "window_min": minutes, "period_s": period,
-                  "summary": summary, "slowest_routes_p95": slow, "per_period": rows[-40:]})
+                  "note": f"request/error/order counts are totals {per.replace('_', ' ')}, not per second",
+                  "summary": summary, "busiest_routes": busy, "slowest_routes_p95": slow, "per_period": rows[-40:]})
 
 
 @tool
