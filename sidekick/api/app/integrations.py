@@ -81,6 +81,8 @@ CATALOG = {
         "fields": [
             {"k": "url", "label": "App URL", "type": "text", "default": "http://host.docker.internal:8080", "placeholder": "http://localhost:8080"},
             {"k": "preview_url_template", "label": "Preview URL template", "type": "text", "default": "http://localhost:{port}", "placeholder": "https://{branch}.preview.shoplite.dev"},
+            {"k": "pr_preview_url_template", "label": "PR preview URL template (optional)", "type": "text", "placeholder": "https://{label}.<lke-nodebalancer>.sslip.io",
+             "help": "Where the repo's PR-preview workflow serves pull requests ({label} = pr-<number>). Empty = use the Preview URL template."},
         ],
     },
     "prometheus": {

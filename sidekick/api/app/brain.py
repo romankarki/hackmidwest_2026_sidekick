@@ -372,10 +372,11 @@ def _ship_code_change(conv, change, step):
     set_status(conv["id"], "pr_open")
     actions = [{"id": "open", "label": f"🔗 View PR #{pr['number']}", "url": pr["url"], "style": "primary"}]
     preview = ""
-    template = integrations.creds("shoplite").get("preview_url_template") or ""
+    cfg = integrations.creds("shoplite")  # PR previews may live elsewhere (LKE) than the demo previews (VM)
+    template = cfg.get("pr_preview_url_template") or cfg.get("preview_url_template") or ""
     if template.startswith("https://"):  # hosted: the repo's PR-preview workflow builds every PR at pr-<number>.<host>
         url = template.format(label=f"pr-{pr['number']}", branch=pr["branch"], port="")
-        preview = f"\n• Preview (ready in ~2–3 min, built by GitHub Actions): {url}"
+        preview = f"\n• Preview on Akamai LKE (ready in ~3–4 min, built by GitHub Actions): {url}"
         actions.append({"id": "open", "label": f"🔍 Open preview pr-{pr['number']}", "url": url})
     return (f"✅ *Pull request #{pr['number']} opened* on `{pr['repo']}`: {change['title']}\n"
             f"• Branch `{pr['branch']}` → `{pr['base']}`\n• Review and merge it on GitHub: {pr['url']}{preview}", actions)
