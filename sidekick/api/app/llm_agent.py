@@ -12,7 +12,8 @@ The model comes from Configure → Model (`models.resolve()`):
   akamai_ai | —                             | OpenAIModel (Chat Completions, base URL + key from Integrations → Akamai AI inference)
 
 Every tool call is reported into `runs.steps` through Strands hooks, so Slack and the dashboard show it live.
-Tools only READ. The one action tool, `request_approval`, creates a pending approval; shipping still goes through
+Tools only READ. The action tools only PROPOSE: `request_approval` (infra) and `propose_code_change` (validated edits;
+after approval github_ops opens a real branch + PR) create a pending approval; shipping still goes through
 the human Approve button and the configured workflow.
 """
 import json
@@ -24,7 +25,7 @@ import requests
 from strands import Agent, tool
 from strands.hooks import AfterToolCallEvent, BeforeToolCallEvent, HookProvider
 
-from . import db, integrations, models
+from . import db, github_ops, integrations, models
 
 TIMEOUT = 10
 MAX_TOOL_TEXT = 6000  # keep tool results small enough for the model's context
@@ -36,9 +37,13 @@ How to work:
 - Investigate with your tools before concluding. Prefer real data (metrics, headers, deploy history, edge config) over guesses.
 - If a tool says an integration isn't connected, say which one and continue with what you can check.
 - Be concise and concrete: lead with the answer, then the evidence (numbers, commit SHAs, header values), then next steps.
-- You can READ infrastructure and code. You cannot change anything yourself. When you have a specific fix or change to
+- You can READ infrastructure and code. You cannot change anything yourself. When you have a specific infra fix to
   propose, call `request_approval` with a short title, a summary of the evidence and the exact plan. A human approves it
   and the configured workflow ships it. Never claim a change was made.
+- Code changes to the ShopLite repo (e.g. "rename the page", "change this text", "raise a PR"): find the code with
+  `github_search_code` / `github_list_files`, read it with `github_read_file`, then call `propose_code_change` ONCE with
+  minimal find/replace edits whose `find` text is copied exactly from the file. A human approves the diff and Sidekick
+  opens the pull request. Change only what was asked; keep the code's formatting.
 - Format for Slack mrkdwn: *bold*, _italic_, `code`, ```code blocks```, and bullet lines starting with "• ".
 
 Current conversation status: {status}. Requested by: {user}."""
@@ -206,6 +211,83 @@ def github_commit_diff(sha: str) -> str:
         {"file": f["filename"], "status": f["status"], "+": f["additions"], "-": f["deletions"], "patch": (f.get("patch") or "")[:1500]} for f in c.get("files", [])]})
 
 
+@tool
+def github_list_files(prefix: str = "") -> str:
+    """List the files in the ShopLite repo (base branch), optionally under a folder.
+
+    Args:
+        prefix: Folder to list, e.g. "web/public" (empty = whole repo)
+    """
+    try:
+        return _clip(github_ops.list_files(prefix) or f"No files under {prefix!r}")
+    except github_ops.GitHubError as e:
+        return str(e)
+
+
+@tool
+def github_read_file(path: str, start_line: int = 1, max_lines: int = 150) -> str:
+    """Read a file from the ShopLite repo (base branch). Returns the exact text, so you can copy `find` strings from it.
+
+    Args:
+        path: File path, e.g. "web/public/index.html"
+        start_line: First line to return (1-based)
+        max_lines: How many lines to return (max 200)
+    """
+    try:
+        text, _ = github_ops.read_file(path)
+    except github_ops.GitHubError as e:
+        return str(e)
+    lines = text.splitlines()
+    s = max(1, int(start_line))
+    chunk = lines[s - 1:s - 1 + min(int(max_lines), 200)]
+    more = f"\n… lines {s + len(chunk)}–{len(lines)} not shown (call again with start_line)" if s - 1 + len(chunk) < len(lines) else ""
+    return f"{path} · lines {s}–{s + len(chunk) - 1} of {len(lines)}\n" + "\n".join(chunk) + more
+
+
+@tool
+def github_search_code(query: str) -> str:
+    """Find where text appears in the ShopLite repo (case-insensitive, all text files). Returns file, line number and line.
+
+    Args:
+        query: Text to look for, e.g. "<title>" or "ShopLite"
+    """
+    try:
+        return _clip(github_ops.search(query) or f"No matches for {query!r}")
+    except github_ops.GitHubError as e:
+        return str(e)
+
+
+def make_propose_code_change(conv, actor, flag):
+    @tool
+    def propose_code_change(title: str, summary: str, edits: list[dict]) -> str:
+        """Propose a code change to the ShopLite repo for human approval. After approval Sidekick creates a branch,
+        commits exactly these edits and opens a pull request. Read the files first: each `find` must be copied exactly
+        from github_read_file and must occur exactly once in that file.
+
+        Args:
+            title: Short PR title, e.g. "Rename store to ShopLite Plus in the page title"
+            summary: What changes and why (1-3 sentences); becomes the PR description
+            edits: List of {"path": "web/public/index.html", "find": "exact existing text", "replace": "new text"}
+        """
+        try:
+            prepared = github_ops.prepare_edits(edits)
+        except github_ops.GitHubError as e:
+            return f"Not proposed: {e}"
+        diff = prepared["diff"]
+        plan = f"Branch → commit {len(prepared['files'])} file(s) → pull request\n\n{diff[:1500]}"
+        db.run("UPDATE approvals SET status = 'rejected', decided_by = 'superseded' WHERE conversation_id = %s AND status = 'pending'", (conv["id"],))
+        db.run("INSERT INTO approvals (conversation_id, title, summary, requested_by) VALUES (%s, %s, %s, %s)",
+               (conv["id"], f"PR: {title}"[:200], f"{summary}\n\n{diff}"[:4000], actor.get("name") or actor.get("id")))
+        change = {"title": title[:200], "summary": summary[:2000], "edits": edits, "requested_by": actor.get("name") or actor.get("id")}
+        db.run("UPDATE conversations SET context = context || %s WHERE id = %s",
+               (db.J({"code_change": change, "approval_title": f"PR: {title}"[:200], "approval_plan": plan}), conv["id"]))
+        flag["requested"] = True
+        flag["diff"] = diff
+        return ("Proposed. The human sees this diff with Approve / Reject; after approval Sidekick opens the PR. "
+                "Do not claim the PR exists yet.\n" + diff[:2000])
+    return propose_code_change
+
+
 def _akamai():
     c = integrations.creds("akamai")
     if not all(c.get(k) for k in ("host", "client_token", "client_secret", "access_token")):
@@ -285,18 +367,23 @@ def make_request_approval(conv, actor, flag):
 
 
 READ_TOOLS = [shoplite_health, shoplite_route_latency, shoplite_catalog_cache_headers, prometheus_query, cloudwatch_metric,
-              eks_cluster_status, github_recent_commits, github_commit_diff, akamai_list_properties, akamai_property_caching_rules]
+              eks_cluster_status, github_recent_commits, github_commit_diff, github_list_files, github_read_file, github_search_code,
+              akamai_list_properties, akamai_property_caching_rules]
 TOOL_INTEGRATION = {"shoplite_health": "shoplite", "shoplite_route_latency": "shoplite", "shoplite_catalog_cache_headers": "shoplite",
                     "prometheus_query": "prometheus", "cloudwatch_metric": "aws", "eks_cluster_status": "aws", "github_recent_commits": "github",
-                    "github_commit_diff": "github", "akamai_list_properties": "akamai", "akamai_property_caching_rules": "akamai"}
+                    "github_commit_diff": "github", "github_list_files": "github", "github_read_file": "github", "github_search_code": "github",
+                    "propose_code_change": "github", "akamai_list_properties": "akamai", "akamai_property_caching_rules": "akamai"}
 
 
 # ---------- model ----------
 def build_model(r):
     """Strands model for the resolved Model-page settings."""
     if r["provider"] == "akamai_ai":  # OpenAI-compatible Chat Completions on Akamai (vLLM)
+        import httpx
         from strands.models.openai import OpenAIModel
-        return OpenAIModel(client_args=models.openai_client_args("akamai_ai"), model_id=r["model_id"],
+        # shared hackathon endpoint: connections can be slow under load, so be patient and retry (default connect timeout is 5s)
+        patient = {"timeout": httpx.Timeout(120.0, connect=20.0), "max_retries": 4}
+        return OpenAIModel(client_args={**models.openai_client_args("akamai_ai"), **patient}, model_id=r["model_id"],
                            params={"max_tokens": models.request_body(r)["max_tokens"]})
     if r["provider"] == "openai":
         from strands.models.openai_responses import OpenAIResponsesModel
@@ -397,9 +484,11 @@ def run(run_id, conv, text, actor):
     flag = {"requested": False}
 
     agent = Agent(model=build_model(r), system_prompt=system, messages=history,
-                  tools=READ_TOOLS + [make_request_approval(conv, actor, flag)], hooks=[StepReporter(run_id)], callback_handler=None)
+                  tools=READ_TOOLS + [make_request_approval(conv, actor, flag), make_propose_code_change(conv, actor, flag)], hooks=[StepReporter(run_id)], callback_handler=None)
     reply = str(agent(text)).strip() or "(no text reply)"
 
     db.run("UPDATE conversations SET context = context || %s, updated_at = now() WHERE id = %s",
            (db.J({"llm_messages": json.loads(json.dumps(_trim(agent.messages, limit), default=str))}), conv["id"]))
+    if flag.get("diff"):  # always show the exact diff the approver is approving, whatever the model wrote
+        reply += f"\n\n*Proposed change (approve to open a PR):*\n```{flag['diff'][:2500]}```"
     return reply, flag["requested"]
