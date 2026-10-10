@@ -64,9 +64,17 @@ BUDGET_NAME="My Monthly Cost Budget" bash deploy/aws-setup.sh <vm-ip>   # or BUD
 - `akamai-cloudwatch`, on the Akamai VM, ships per-minute metrics from ShopLite's Prometheus endpoint.
 - Sidekick reads them with `cloudwatch_shoplite_overview` and `cloudwatch_alarms`.
 
-**Model on Bedrock:** provider *Amazon Bedrock*, transport **Converse**, custom model ID `openai.gpt-oss-120b-1:0` (tool calling, 128K context).
-- **Why not Claude:** on a new account, Claude needs the one-time Anthropic use-case form (Bedrock → Model catalog → any Claude model).
-- **Why not the newest models:** Claude Sonnet/Opus 5 and GPT-5.6 Terra can be "not available for this account" until AWS enables them. Test the candidates with `aws bedrock-runtime converse` before switching.
+**Model on Bedrock:** provider *Amazon Bedrock*, transport **Converse**, custom model ID **`us.moonshotai.kimi-k3`** (Kimi K3).
+
+It was chosen in a head-to-head on prod (same coding and infra tasks) against Qwen3-Coder 480B, DeepSeek V3.2 and gpt-oss-120b:
+- it gave the only fully correct "sort by price" PR;
+- it gave the most accurate infra and cost answer.
+
+**Models this account can't use yet:**
+- Claude needs the one-time Anthropic use-case form (Bedrock → Model catalog).
+- GPT-5.6 Terra, GPT-6 Sol, GPT-5.5, Claude Sonnet/Opus 5, GLM-5.3 and Grok 4.7 are "not available for this account" until AWS enables them for it (ask AWS Support or the hackathon's AWS team).
+
+Switching is one setting on the Model page. Test candidates first with `aws bedrock-runtime converse --model-id <id>` using the sidekick-agent keys.
 
 ## Inventory and costs ("what's running / what does it cost")
 
