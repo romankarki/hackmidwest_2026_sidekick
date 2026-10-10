@@ -206,7 +206,7 @@ def cloudwatch_shoplite_overview(minutes: int = 60, environment: str = "prod") -
             return {}
         rr = cw.get_metric_data(StartTime=start, EndTime=end, MetricDataQueries=[
             {"Id": f"r{i}", "Label": next(d["Value"] for d in m["Dimensions"] if d["Name"] == "Route"),
-             "MetricStat": {"Metric": m, "Period": minutes * 60, "Stat": stat}} for i, m in enumerate(ms)])
+             "MetricStat": {"Metric": m, "Period": period, "Stat": stat}} for i, m in enumerate(ms)])  # per-period buckets, aggregated below
         return {r["Label"]: (max(r["Values"]) if stat == "Maximum" else sum(r["Values"])) for r in rr["MetricDataResults"] if r["Values"]}
     p95s, reqs, errs = route_stats("LatencyP95", "Maximum"), route_stats("Requests", "Sum"), route_stats("Errors5xx", "Sum")
     slow = sorted(({"route": k, "p95_ms_max": round(v, 1)} for k, v in p95s.items()), key=lambda x: -x["p95_ms_max"])[:5]
