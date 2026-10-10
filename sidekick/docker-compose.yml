@@ -1,0 +1,71 @@
+# Sidekick control plane: dashboard + API (FastAPI) + Postgres + the Slack bot.
+#
+#   docker compose up -d --build      → dashboard at http://localhost:8090
+#
+# The dashboard is bound to 127.0.0.1 only: there is no login yet.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: sidekick
+      POSTGRES_USER: sidekick
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-sidekick}
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sidekick -d sidekick"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://sidekick:${DB_PASSWORD:-sidekick}@db:5432/sidekick
+      SIDEKICK_SECRET_KEY: ${SIDEKICK_SECRET_KEY:?set SIDEKICK_SECRET_KEY in sidekick/.env}
+      SIDEKICK_OWNER_NAME: ${SIDEKICK_OWNER_NAME:-Owner}
+      SIDEKICK_OWNER_EMAIL: ${SIDEKICK_OWNER_EMAIL:-owner@example.com}
+    volumes:
+      - ./dashboard:/srv/dashboard:ro      # edit the dashboard without rebuilding
+    ports:
+      - "127.0.0.1:${DASHBOARD_PORT:-8090}:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # reach ShopLite / local services on the host
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  slack-bot:
+    build: ../slack-bot
+    env_file: ../slack-bot/.env
+    environment:
+      SIDEKICK_API_URL: http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  devrev-mcp:   # MCP connector for DevRev Computer (see devrev-mcp/README.md); expose publicly via a tunnel
+    build: ../devrev-mcp
+    environment:
+      SIDEKICK_API_URL: http://api:8000
+      SIDEKICK_DASHBOARD_URL: http://localhost:${DASHBOARD_PORT:-8090}
+      ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:-}
+    volumes:
+      - ../devrev-mcp/data:/data:ro
+      - ../devrev-mcp/teammates.json:/config/teammates.json:ro
+    ports:
+      - "127.0.0.1:${MCP_PORT:-8095}:8095"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  dbdata:
