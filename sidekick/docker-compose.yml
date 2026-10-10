@@ -71,5 +71,18 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  akamai-cloudwatch:   # ShopLite metrics from Akamai Cloud → Amazon CloudWatch (idle unless CW_AWS_* keys are set)
+    build: ../akamai-cloudwatch
+    environment:
+      AWS_ACCESS_KEY_ID: ${CW_AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${CW_AWS_SECRET_ACCESS_KEY:-}
+      AWS_REGION: ${CW_AWS_REGION:-us-west-2}
+      TARGETS: ${CW_TARGETS:-prod=http://host.docker.internal:8080}
+      HOST_NAME: ${CW_HOST_NAME:-sidekick-prod}
+      SYNTHETIC_TRAFFIC: ${CW_SYNTHETIC_TRAFFIC:-0}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
 volumes:
   dbdata:
