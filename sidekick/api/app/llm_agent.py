@@ -25,7 +25,7 @@ from urllib.parse import urlparse
 
 import requests
 from strands import Agent, tool
-from strands.hooks import AfterToolCallEvent, BeforeToolCallEvent, HookProvider
+from strands.hooks import AfterToolCallEvent, BeforeModelCallEvent, BeforeToolCallEvent, HookProvider
 
 from . import db, github_ops, integrations, inventory, models
 
@@ -627,9 +627,25 @@ class StepReporter(HookProvider):
     def register_hooks(self, registry, **kwargs):
         registry.add_callback(BeforeToolCallEvent, self.before)
         registry.add_callback(AfterToolCallEvent, self.after)
+        registry.add_callback(BeforeModelCallEvent, self.sanitize_history)
 
     def _save(self):
         db.run("UPDATE runs SET steps = %s WHERE id = %s", (db.J(self.steps), self.run_id))
+
+    def sanitize_history(self, event):
+        """Before every model call: every toolUse.input in the history must be a JSON object (Bedrock rejects anything
+        else). gpt-oss sometimes emits "" or a JSON string for argument-less tools."""
+        for m in event.agent.messages:
+            for c in m.get("content", []):
+                tu = c.get("toolUse") if isinstance(c, dict) else None
+                if tu is not None and not isinstance(tu.get("input"), dict):
+                    raw = tu.get("input")
+                    try:
+                        parsed = json.loads(raw) if isinstance(raw, str) and raw.strip() else {}
+                    except ValueError:
+                        parsed = {}
+                    print(f"[llm] normalised toolUse.input for {tu.get('name')}: {type(raw).__name__} {str(raw)[:60]!r}", flush=True)
+                    tu["input"] = parsed if isinstance(parsed, dict) else {}
 
     def before(self, event):
         tu = event.tool_use
