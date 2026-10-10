@@ -327,6 +327,12 @@ def approve(conv, actor):
         return reply(conv, f"⛔ {why}")
     db.run("UPDATE approvals SET status = 'approved', decided_by = %s, decided_at = now() WHERE conversation_id = %s AND status = 'pending'",
            (actor_label(actor), conv["id"]))
+    change = _context(conv).get("code_change")
+    if change:  # a real code change proposed by the LLM agent → branch + commit + PR on GitHub
+        set_status(conv["id"], "shipping")
+        change = {**change, "approved_by": actor_label(actor)}
+        run_id = start_task_run(conv, "ship", f"Open PR: {change['title'][:80]}", actor, lambda step: _ship_code_change(conv, change, step))
+        return started(conv, run_id, f"✅ Approved by {actor_label(actor)} — creating a branch and opening a pull request.")
     wf = incident_workflow()
     after = steps_after_approval(wf)
     steps = []
@@ -348,7 +354,66 @@ def reject(conv, actor):
     db.run("UPDATE approvals SET status = 'rejected', decided_by = %s, decided_at = now() WHERE conversation_id = %s AND status = 'pending'",
            (actor_label(actor), conv["id"]))
     set_status(conv["id"], "rejected")
+    ctx = _context(conv)
+    if ctx.get("code_change") or ctx.get("approval_title"):  # proposed by the LLM agent: nothing was created yet
+        db.run("UPDATE conversations SET context = context - 'code_change' - 'approval_title' - 'approval_plan' WHERE id = %s", (conv["id"],))
+        return reply(conv, f"❌ Rejected by {actor_label(actor)} — nothing was changed and no branch or PR was created. Tell me what to do differently.")
     return reply(conv, f"❌ Rejected by {actor_label(actor)} — keeping branch `sidekick/fix-cache-header` as a draft. Say *fix it* to propose again.")
+
+
+def _context(conv):
+    return (db.one("SELECT context FROM conversations WHERE id = %s", (conv["id"],)) or {}).get("context") or {}
+
+
+def _ship_code_change(conv, change, step):
+    from . import github_ops
+    pr = github_ops.open_pr(change, step)
+    db.run("UPDATE conversations SET context = context - 'code_change' - 'approval_title' - 'approval_plan' WHERE id = %s", (conv["id"],))
+    set_status(conv["id"], "pr_open")
+    return (f"✅ *Pull request #{pr['number']} opened* on `{pr['repo']}`: {change['title']}\n"
+            f"• Branch `{pr['branch']}` → `{pr['base']}`\n• Review and merge it on GitHub: {pr['url']}",
+            [{"id": "open", "label": f"🔗 View PR #{pr['number']}", "url": pr["url"], "style": "primary"}])
+
+
+# ---------- runs whose steps do real work (not simulated) ----------
+def start_task_run(conv, intent, title, actor, task):
+    """Like start_run, but `task(step)` performs the work; step(tool, detail, fn) runs fn and records it live."""
+    skill = SKILL_FOR.get(intent, "analyst")
+    row = db.one("INSERT INTO runs (conversation_id, intent, skill, title, source, requested_by, model) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id",
+                 (conv["id"], intent, skill, title, conv["source"], actor_label(actor), "GitHub API (no model)"))
+    threading.Thread(target=_execute_task, args=(row["id"], conv, task), daemon=True).start()
+    return row["id"]
+
+
+def _execute_task(run_id, conv, task):
+    done = []
+
+    def step(tool, detail, fn):
+        integ = TOOL_INTEGRATION.get(tool.split(".")[0])
+        entry = {"tool": tool, "detail": detail, "status": "running", "integration": integ, "connected": bool(integ and integrations.connected(integ))}
+        done.append(entry)
+        db.run("UPDATE runs SET steps = %s WHERE id = %s", (db.J(done), run_id))
+        t0 = time.perf_counter()
+        try:
+            out = fn()
+        except Exception as e:
+            entry.update(status="error", detail=f"{detail} → {str(e)[:200]}", secs=round(time.perf_counter() - t0, 1))
+            db.run("UPDATE runs SET steps = %s WHERE id = %s", (db.J(done), run_id))
+            raise
+        entry.update(status="done", secs=round(time.perf_counter() - t0, 1))
+        db.run("UPDATE runs SET steps = %s WHERE id = %s", (db.J(done), run_id))
+        return out
+
+    try:
+        text, actions = task(step)
+        db.run("UPDATE runs SET status = 'done', result = %s, finished_at = now() WHERE id = %s", (db.J({"text": text, "actions": actions}), run_id))
+    except Exception as e:  # noqa: BLE001
+        set_status(conv["id"], "awaiting_approval")  # the approved change is still in context: fix the cause and approve again
+        db.run("UPDATE approvals SET status = 'pending', decided_by = NULL, decided_at = NULL WHERE id = "
+               "(SELECT id FROM approvals WHERE conversation_id = %s ORDER BY created_at DESC LIMIT 1)", (conv["id"],))
+        db.run("UPDATE runs SET status = 'failed', result = %s, finished_at = now() WHERE id = %s",
+               (db.J({"text": f"❌ Couldn't open the PR: {str(e)[:400]}\nNothing was merged. Fix the cause and approve again, or reject.",
+                      "actions": APPROVE_ACTIONS}), run_id))
 
 
 def _help(status):
