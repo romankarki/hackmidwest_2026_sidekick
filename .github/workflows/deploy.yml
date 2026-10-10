@@ -1,0 +1,29 @@
+# Push to master → rebuild Sidekick (API + dashboard, Slack bot, DevRev connector) on the Akamai Cloud VM.
+# The deploy key can only run the allow-listed commands in the server's gate script (deploy/gate.sh).
+name: Deploy Sidekick
+
+on:
+  push:
+    branches: [master]
+    paths-ignore: ["**.md", "docs/**"]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-sidekick
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Akamai Cloud
+        env:
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          if [ -z "$KEY" ]; then echo "::warning::DEPLOY_SSH_KEY not set, skipping deploy"; exit 0; fi
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh -o BatchMode=yes deploy@"$HOST" deploy sidekick
