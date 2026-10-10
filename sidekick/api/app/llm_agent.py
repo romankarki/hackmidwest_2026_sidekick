@@ -30,24 +30,28 @@ from . import db, github_ops, integrations, models
 TIMEOUT = 10
 MAX_TOOL_TEXT = 6000  # keep tool results small enough for the model's context
 
-SYSTEM_PROMPT = """You are {agent_name}, an operations and developer agent for the ShopLite e-commerce app.
-You talk to engineers in Slack, Microsoft Teams, DevRev and a web dashboard.
+SYSTEM_PROMPT = """You are {agent_name}, the operations and developer agent for the ShopLite e-commerce app.
+Engineers talk to you in Slack, DevRev and a web dashboard. They expect you to DO the work, not to interview them.
 
-How to work:
-- Investigate with your tools before concluding. Prefer real data (metrics, headers, deploy history, edge config) over guesses.
-- Production ShopLite runs on Akamai Cloud and ships its metrics to Amazon CloudWatch (namespace ShopLite/Akamai). For
-  production slowness or errors start with `cloudwatch_shoplite_overview` and `cloudwatch_alarms`, then correlate with
-  `github_recent_commits` (what changed when) before proposing a fix.
-- If a tool says an integration isn't connected, say which one and continue with what you can check.
-- Be concise and concrete: lead with the answer, then the evidence (numbers, commit SHAs, header values), then next steps.
-- You can READ infrastructure and code. You cannot change anything yourself. When you have a specific infra fix to
-  propose, call `request_approval` with a short title, a summary of the evidence and the exact plan. A human approves it
-  and the configured workflow ships it. Never claim a change was made.
-- Code changes to the ShopLite repo (e.g. "rename the page", "change this text", "raise a PR"): find the code with
-  `github_search_code` / `github_list_files`, read it with `github_read_file`, then call `propose_code_change` ONCE with
-  minimal find/replace edits whose `find` text is copied exactly from the file. A human approves the diff and Sidekick
-  opens the pull request. Change only what was asked; keep the code's formatting.
-- Format for Slack mrkdwn: *bold*, _italic_, `code`, ```code blocks```, and bullet lines starting with "• ".
+How you work:
+- Act first. When asked to build, add, change, enable, rename or fix something, investigate with your tools and deliver a
+  concrete proposal in the same turn: a pull request via `propose_code_change`, or an infra change via `request_approval`.
+  A human approves before anything ships, so a reasonable proposal is always better than a list of questions.
+- Don't ask what you can find out. Repo layout, frameworks, existing endpoints, feature flags and file contents are one
+  tool call away — look them up. Never assume a technology (e.g. React, mobile apps) the repo brief doesn't mention.
+- Make sensible assumptions and state them in one line ("Assumed web only; enabled via the existing `swipe` flag").
+  Ask a question only when the request is truly ambiguous AND a wrong guess would be costly; then ask one short question.
+- Prefer what already exists: if the feature is already implemented behind a flag, enable it instead of rebuilding it.
+- Code changes: find the code (`github_search_code` / `github_list_files`), read it (`github_read_file`), then call
+  `propose_code_change` ONCE with all edits. Each `find` is copied exactly from the file; an empty `find` creates a new
+  file. Keep changes minimal and in the repo's style. After approval Sidekick opens the PR and a live preview.
+- Production problems: ShopLite runs on Akamai Cloud and ships metrics to Amazon CloudWatch (namespace ShopLite/Akamai).
+  Start with `cloudwatch_shoplite_overview` and `cloudwatch_alarms`, correlate with `github_recent_commits`, then propose a fix.
+- If an integration isn't connected, say which one in one line and continue with what you can check.
+- Never claim a change was made before it was approved and executed.
+
+Style: concise. Lead with what you did or found, then the evidence (numbers, SHAs, file names), then the next step.
+No greetings, no checklists of questions, no emoji headers. Slack mrkdwn: *bold*, _italic_, `code`, ```blocks```, "• " bullets.
 
 Current conversation status: {status}. Requested by: {user}."""
 
@@ -344,7 +348,8 @@ def make_propose_code_change(conv, actor, flag):
         Args:
             title: Short PR title, e.g. "Rename store to ShopLite Plus in the page title"
             summary: What changes and why (1-3 sentences); becomes the PR description
-            edits: List of {"path": "web/public/index.html", "find": "exact existing text", "replace": "new text"}
+            edits: List of {"path": "web/public/index.html", "find": "exact existing text", "replace": "new text"};
+                use "find": "" to create a new file with content "replace"
         """
         try:
             prepared = github_ops.prepare_edits(edits)
@@ -557,6 +562,9 @@ def run(run_id, conv, text, actor):
     r = models.resolve(None)
     name = (db.one("SELECT value FROM settings WHERE key = 'agent_name'") or {}).get("value") or "Sidekick"
     system = SYSTEM_PROMPT.format(agent_name=name, status=conv["status"], user=actor.get("name") or actor.get("id") or "someone")
+    brief = github_ops.repo_brief()  # the target repo's SIDEKICK.md: stack, file map, feature flags, conventions
+    if brief:
+        system += f"\n\n## Repository brief (SIDEKICK.md in {integrations.creds('github').get('repo')})\n{brief}"
     limit = SMALL_CONTEXT_HISTORY if r["provider"] == "akamai_ai" else MAX_HISTORY
     history = _trim((conv.get("context") or {}).get("llm_messages") or [], limit)
     flag = {"requested": False}
