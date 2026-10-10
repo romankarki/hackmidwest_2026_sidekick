@@ -52,6 +52,15 @@ CATALOG = {
             {"k": "api_key", "label": "API key", "type": "secret", "placeholder": "sk-ant-…", "help": "Only needed when the Model provider is “Anthropic API”. Bedrock uses the AWS credentials."},
         ],
     },
+    "akamai_cloud": {
+        "name": "Akamai Cloud", "group": "Cloud & infrastructure", "color": "#0096d6", "abbr": "AC",
+        "description": "Akamai Cloud (Linode): VMs, LKE clusters, NodeBalancers, firewalls, usage and credits, for “what's running / what does it cost”.",
+        "uses": ["linodes", "lke", "nodebalancers", "account"],
+        "fields": [
+            {"k": "api_token", "label": "API token (read-only)", "type": "secret", "placeholder": "Linode personal access token",
+             "help": "Cloud Manager → Profile → API Tokens: Read Only for Linodes, Kubernetes, NodeBalancers, Firewalls, Account."},
+        ],
+    },
     "akamai": {
         "name": "Akamai", "group": "Edge / CDN", "color": "#0096d6", "abbr": "AK",
         "description": "Property Manager + reporting — cache rules, edge config, activation on staging/production.",
@@ -357,5 +366,18 @@ def _test_akamai_ai(c):
     return True, f"Key valid · models: {', '.join(ids)}"
 
 
-TESTS = {"akamai_ai": _test_akamai_ai, "aws": _test_aws, "anthropic": _test_anthropic, "openai": _test_openai, "akamai": _test_akamai, "github": _test_github, "shoplite": _test_shoplite,
+def _test_akamai_cloud(c):
+    if not c.get("api_token"):
+        return False, "Missing API token"
+    h = {"Authorization": f"Bearer {c['api_token']}"}
+    r = requests.get("https://api.linode.com/v4/account", headers=h, timeout=TIMEOUT)
+    if r.status_code != 200:
+        return False, f"HTTP {r.status_code}: {(r.json().get('errors') or [{}])[0].get('reason', r.text[:120])}"
+    n = requests.get("https://api.linode.com/v4/linode/instances", headers=h, timeout=TIMEOUT)
+    vms = n.json().get("results", 0) if n.status_code == 200 else "no Linodes scope"
+    credit = sum(float(p.get("credit_remaining") or 0) for p in r.json().get("active_promotions", []))
+    return True, f"Account OK · {vms} Linodes · ${r.json().get('balance_uninvoiced', 0)} used this month · ${credit:.0f} credit left"
+
+
+TESTS = {"akamai_cloud": _test_akamai_cloud, "akamai_ai": _test_akamai_ai, "aws": _test_aws, "anthropic": _test_anthropic, "openai": _test_openai, "akamai": _test_akamai, "github": _test_github, "shoplite": _test_shoplite,
          "prometheus": _test_prometheus, "grafana": _test_grafana, "devrev": _test_devrev, "slack": _test_slack}
