@@ -1,0 +1,237 @@
+/* ===== shadcn/ui theme layer for the dashboard =====
+   Tokens below are shadcn/ui's default "neutral" globals.css (Tailwind v4, oklch).
+   When you port to Next.js + shadcn, paste the same values into app/globals.css and
+   the classes here map to: Button, Badge, Card, Input, Select, Switch, Tabs,
+   Table, RadioGroup, Separator, Sidebar, Breadcrumb, ToggleGroup. */
+@import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap");
+
+:root {
+  --radius: 0.625rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+
+  /* status (not in shadcn core — kept for run/approval states) */
+  --good: oklch(0.55 0.14 150); --warn: oklch(0.6 0.13 70); --bad: var(--destructive); --info: oklch(0.55 0.15 250);
+  /* step-kind hues for the workflow builder */
+  --k-trigger: oklch(0.55 0.17 255); --k-skill: oklch(0.54 0.2 290); --k-gate: oklch(0.62 0.14 70);
+  --k-delivery: oklch(0.56 0.13 155); --k-notify: oklch(0.55 0.02 260);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --background: oklch(0.145 0 0); --foreground: oklch(0.985 0 0);
+    --card: oklch(0.205 0 0); --card-foreground: oklch(0.985 0 0);
+    --popover: oklch(0.205 0 0); --popover-foreground: oklch(0.985 0 0);
+    --primary: oklch(0.922 0 0); --primary-foreground: oklch(0.205 0 0);
+    --secondary: oklch(0.269 0 0); --secondary-foreground: oklch(0.985 0 0);
+    --muted: oklch(0.269 0 0); --muted-foreground: oklch(0.708 0 0);
+    --accent: oklch(0.269 0 0); --accent-foreground: oklch(0.985 0 0);
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: oklch(1 0 0 / 10%); --input: oklch(1 0 0 / 15%); --ring: oklch(0.556 0 0);
+    --chart-1: oklch(0.488 0.243 264.376); --chart-2: oklch(0.696 0.17 162.48); --chart-3: oklch(0.769 0.188 70.08); --chart-4: oklch(0.627 0.265 303.9); --chart-5: oklch(0.645 0.246 16.439);
+    --sidebar: oklch(0.205 0 0); --sidebar-foreground: oklch(0.985 0 0);
+    --sidebar-primary: oklch(0.488 0.243 264.376); --sidebar-primary-foreground: oklch(0.985 0 0);
+    --sidebar-accent: oklch(0.269 0 0); --sidebar-accent-foreground: oklch(0.985 0 0);
+    --sidebar-border: oklch(1 0 0 / 10%); --sidebar-ring: oklch(0.556 0 0);
+    --good: oklch(0.72 0.15 150); --warn: oklch(0.78 0.13 75); --info: oklch(0.7 0.13 250);
+    --k-trigger: oklch(0.7 0.14 255); --k-skill: oklch(0.7 0.16 290); --k-gate: oklch(0.78 0.13 75);
+    --k-delivery: oklch(0.72 0.14 155); --k-notify: oklch(0.7 0.02 260);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --background: oklch(0.145 0 0); --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0); --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0); --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0); --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0); --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0); --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0); --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%); --input: oklch(1 0 0 / 15%); --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.488 0.243 264.376); --chart-2: oklch(0.696 0.17 162.48); --chart-3: oklch(0.769 0.188 70.08); --chart-4: oklch(0.627 0.265 303.9); --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0 0); --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376); --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0); --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%); --sidebar-ring: oklch(0.556 0 0);
+  --good: oklch(0.72 0.15 150); --warn: oklch(0.78 0.13 75); --info: oklch(0.7 0.13 250);
+  --k-trigger: oklch(0.7 0.14 255); --k-skill: oklch(0.7 0.16 290); --k-gate: oklch(0.78 0.13 75);
+  --k-delivery: oklch(0.72 0.14 155); --k-notify: oklch(0.7 0.02 260);
+  color-scheme: dark;
+}
+
+/* Map the prototype's shared tokens (styles.css) onto shadcn tokens */
+body.shadcn {
+  --bg: var(--background); --surface: var(--card); --surface-2: var(--muted); --surface-3: var(--secondary);
+  --border-strong: var(--input);
+  --text: var(--foreground); --text-2: color-mix(in oklch, var(--foreground) 78%, transparent); --text-3: var(--muted-foreground);
+  --brand: var(--primary); --brand-soft: var(--secondary); --brand-text: var(--foreground); --on-brand: var(--primary-foreground);
+  --good-soft: color-mix(in oklch, var(--good) 12%, transparent);
+  --warn-soft: color-mix(in oklch, var(--warn) 14%, transparent);
+  --bad-soft: color-mix(in oklch, var(--destructive) 12%, transparent);
+  --info-soft: color-mix(in oklch, var(--info) 12%, transparent);
+  --code-bg: var(--muted);
+  --shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --font: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "Geist Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
+  background: var(--background); color: var(--foreground); font-family: var(--font);
+}
+.shadcn svg.i { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ---- Button ---- */
+.shadcn .btn {
+  height: 36px; padding: 0 16px; gap: 8px; border-radius: calc(var(--radius) - 2px);
+  font-size: 14px; font-weight: 500; border: 1px solid var(--border); background: var(--background);
+  color: var(--foreground); box-shadow: var(--shadow); transition: background .15s, color .15s;
+}
+.shadcn .btn:hover { background: var(--accent); color: var(--accent-foreground); }
+.shadcn .btn:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent); border-color: var(--ring); }
+.shadcn .btn.primary, .shadcn .btn.good { background: var(--primary); color: var(--primary-foreground); border-color: transparent; }
+.shadcn .btn.primary:hover, .shadcn .btn.good:hover { background: color-mix(in oklch, var(--primary) 90%, transparent); filter: none; }
+.shadcn .btn.secondary { background: var(--secondary); color: var(--secondary-foreground); border-color: transparent; box-shadow: none; }
+.shadcn .btn.ghost { background: transparent; border-color: transparent; box-shadow: none; }
+.shadcn .btn.ghost:hover { background: var(--accent); }
+.shadcn .btn.destructive { background: var(--destructive); color: #fff; border-color: transparent; }
+.shadcn .btn.sm { height: 32px; padding: 0 12px; font-size: 13px; gap: 6px; }
+.shadcn .btn.icon { width: 36px; padding: 0; justify-content: center; }
+.shadcn .btn.icon.sm { width: 32px; }
+.shadcn .icon-btn { border-radius: calc(var(--radius) - 2px); border-color: transparent; background: transparent; color: var(--foreground); width: 32px; height: 32px; }
+.shadcn .icon-btn:hover { background: var(--accent); }
+
+/* ---- Card ---- */
+.shadcn .card { background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: calc(var(--radius) + 4px); box-shadow: var(--shadow); }
+.shadcn .card-h { border-bottom: 0; padding: 20px 24px 12px; align-items: flex-start; }
+.shadcn .card-h h3, .shadcn .card-title { font-size: 15px; font-weight: 600; line-height: 1.2; }
+.shadcn .card-desc { color: var(--muted-foreground); font-size: 13px; margin-top: 4px; }
+.shadcn .card-b { padding: 4px 24px 24px; }
+.shadcn .card-f { padding: 0 24px 20px; color: var(--muted-foreground); font-size: 13px; display: grid; gap: 2px; }
+.shadcn .card > .table-wrap { padding: 0 12px 8px; }
+
+/* ---- Badge ---- */
+.shadcn .badge { border-radius: calc(var(--radius) - 4px); border: 1px solid var(--border); background: transparent; color: var(--foreground); font-weight: 500; padding: 1px 8px; font-size: 12px; }
+.shadcn .badge.default { background: var(--primary); color: var(--primary-foreground); border-color: transparent; }
+.shadcn .badge.secondary, .shadcn .badge.accent { background: var(--secondary); color: var(--secondary-foreground); border-color: transparent; }
+.shadcn .badge.good { color: var(--good); background: var(--good-soft); border-color: color-mix(in oklch, var(--good) 25%, transparent); }
+.shadcn .badge.warn { color: var(--warn); background: var(--warn-soft); border-color: color-mix(in oklch, var(--warn) 30%, transparent); }
+.shadcn .badge.bad { color: var(--destructive); background: var(--bad-soft); border-color: color-mix(in oklch, var(--destructive) 25%, transparent); }
+.shadcn .badge.info { color: var(--info); background: var(--info-soft); border-color: color-mix(in oklch, var(--info) 25%, transparent); }
+
+/* ---- Input / Select / Label ---- */
+.shadcn .input { height: 36px; border-radius: calc(var(--radius) - 2px); border: 1px solid var(--input); background: transparent; padding: 4px 12px; font-size: 14px; box-shadow: var(--shadow); color: var(--foreground); }
+.shadcn select.input { padding-right: 28px; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 8px center; }
+.shadcn select.input option { background: var(--popover); color: var(--popover-foreground); }
+.shadcn textarea.input { height: auto; min-height: 64px; }
+.shadcn .input:focus { outline: none; border-color: var(--ring); box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent); }
+.shadcn label.field { font-size: 14px; font-weight: 500; gap: 8px; }
+.shadcn label.field span.hint { color: var(--muted-foreground); font-size: 13px; }
+
+/* ---- Switch ---- */
+.shadcn .switch { width: 32px; height: 18px; }
+.shadcn .switch .track { background: var(--input); }
+.shadcn .switch .track::after { width: 14px; height: 14px; background: var(--background); box-shadow: none; }
+.shadcn .switch input:checked + .track { background: var(--primary); }
+.shadcn .switch input:checked + .track::after { transform: translateX(14px); }
+
+/* ---- Table ---- */
+.shadcn .tbl { font-size: 14px; }
+.shadcn .tbl th { text-transform: none; letter-spacing: 0; font-size: 14px; font-weight: 500; color: var(--muted-foreground); height: 40px; padding: 0 8px; }
+.shadcn .tbl td { padding: 10px 8px; }
+.shadcn .tbl tr:hover td { background: color-mix(in oklch, var(--muted) 50%, transparent); }
+
+/* ---- Tabs / ToggleGroup ---- */
+.tabs { display: inline-flex; align-items: center; gap: 2px; padding: 3px; border-radius: var(--radius); background: var(--muted); color: var(--muted-foreground); max-width: 100%; overflow-x: auto; }
+.tabs button { height: 30px; padding: 0 12px; border: 1px solid transparent; border-radius: calc(var(--radius) - 2px); background: transparent; font-size: 14px; font-weight: 500; color: inherit; cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+.tabs button.on { background: var(--background); color: var(--foreground); box-shadow: var(--shadow); }
+.dark-ring { }
+.toggle-group { display: inline-flex; border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); overflow: hidden; box-shadow: var(--shadow); }
+.toggle-group button { height: 32px; padding: 0 12px; border: 0; border-right: 1px solid var(--border); background: transparent; font-size: 13px; cursor: pointer; color: var(--foreground); }
+.toggle-group button:last-child { border-right: 0; }
+.toggle-group button.on { background: var(--accent); font-weight: 500; }
+
+/* ---- RadioGroup cards ---- */
+.radio-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.radio-card { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; background: var(--card); }
+.radio-card:hover { background: color-mix(in oklch, var(--muted) 50%, transparent); }
+.radio-card .r { width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--input); flex: none; margin-top: 2px; display: grid; place-items: center; box-shadow: var(--shadow); }
+.radio-card.on { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
+.radio-card.on .r { border-color: var(--primary); }
+.radio-card.on .r::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--primary); }
+.radio-card .t { font-weight: 500; font-size: 14px; }
+.radio-card .d { color: var(--muted-foreground); font-size: 13px; }
+
+.separator-v { width: 1px; height: 16px; background: var(--border); }
+.text-muted { color: var(--muted-foreground); }
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* ---- Sidebar (shadcn sidebar-07 style) ---- */
+.sb-wrapper { display: flex; min-height: 100vh; background: var(--sidebar); }
+.sidebar { width: 16rem; flex: none; background: var(--sidebar); color: var(--sidebar-foreground); display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; transition: width .2s ease; overflow: hidden; }
+.sb-header, .sb-footer { padding: 8px; display: grid; gap: 8px; }
+.sb-content { flex: 1; overflow-y: auto; overflow-x: hidden; }
+.sb-group { padding: 8px; display: grid; gap: 2px; }
+.sb-label { height: 32px; display: flex; align-items: center; padding: 0 8px; font-size: 12px; font-weight: 500; color: color-mix(in oklch, var(--sidebar-foreground) 70%, transparent); white-space: nowrap; }
+.sb-btn { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px; border-radius: calc(var(--radius) - 2px); color: var(--sidebar-foreground); font-size: 14px; white-space: nowrap; text-decoration: none; }
+.sb-btn:hover { background: var(--sidebar-accent); color: var(--sidebar-accent-foreground); text-decoration: none; }
+.sb-btn.on { background: var(--sidebar-accent); font-weight: 500; }
+.sb-btn .sb-badge { margin-left: auto; font-size: 12px; font-weight: 500; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 6px; display: grid; place-items: center; background: var(--sidebar-primary); color: var(--sidebar-primary-foreground); font-variant-numeric: tabular-nums; }
+.sb-lg { display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: calc(var(--radius) - 2px); color: var(--sidebar-foreground); }
+.sb-lg:hover { background: var(--sidebar-accent); text-decoration: none; }
+.sb-logo { width: 32px; height: 32px; border-radius: var(--radius); display: grid; place-items: center; background: var(--sidebar-primary); color: var(--sidebar-primary-foreground); font-weight: 700; flex: none; }
+.sb-lg .t { font-weight: 600; font-size: 14px; line-height: 1.2; white-space: nowrap; }
+.sb-lg .s { font-size: 12px; color: color-mix(in oklch, var(--sidebar-foreground) 65%, transparent); white-space: nowrap; }
+.sb-avatar { width: 32px; height: 32px; border-radius: 8px; background: var(--muted); display: grid; place-items: center; font-size: 12px; font-weight: 600; flex: none; }
+.sb-card { margin: 0 8px; padding: 12px; border-radius: var(--radius); border: 1px solid var(--sidebar-border); background: var(--background); font-size: 12px; display: grid; gap: 6px; }
+.collapsed .sidebar { width: 3rem; }
+.collapsed .sidebar .sb-label, .collapsed .sidebar .sb-card, .collapsed .sidebar .sb-text, .collapsed .sidebar .sb-badge { display: none; }
+
+.inset { flex: 1; min-width: 0; background: var(--background); margin: 8px 8px 8px 0; border-radius: calc(var(--radius) + 4px); box-shadow: var(--shadow); border: 1px solid var(--sidebar-border); display: flex; flex-direction: column; }
+.inset-h { height: 56px; display: flex; align-items: center; gap: 8px; padding: 0 16px; border-bottom: 1px solid var(--border); position: sticky; top: env(safe-area-inset-top, 0px); background: var(--background); z-index: 20; border-radius: calc(var(--radius) + 4px) calc(var(--radius) + 4px) 0 0; }
+.crumb { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted-foreground); }
+.crumb b { color: var(--foreground); font-weight: 500; }
+.inset-c { padding: 24px; display: grid; gap: 16px; align-content: start; }
+
+@media (max-width: 860px) {
+  .sb-wrapper { flex-direction: column; }
+  .sidebar { width: 100%; height: auto; position: static; }
+  .sb-content { display: flex; overflow-x: auto; }
+  .sb-group { display: flex; padding: 4px; }
+  .sb-label, .sb-card, .sb-footer { display: none; }
+  .inset { margin: 0; border-radius: 0; }
+  .inset-c { padding: 16px; }
+}
+
+/* layout safety: let grid/flex children shrink instead of overflowing on phones */
+.inset-c > *, #wf-root > div > *, .wf-grid > * { min-width: 0; }
+.shadcn .chart .band { opacity: .05; }
+@media (max-width: 860px) { .radio-cards { grid-template-columns: 1fr; } }
+.two > *, .stack > * { min-width: 0; }
+.kv dd { min-width: 0; overflow-wrap: anywhere; }

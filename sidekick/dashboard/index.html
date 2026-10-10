@@ -1,0 +1,1175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sidekick</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%2318181b%27/%3E%3Ctext x=%2716%27 y=%2722%27 font-size=%2718%27 text-anchor=%27middle%27 fill=%27white%27 font-family=%27sans-serif%27 font-weight=%27700%27%3ES%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/styles.css">
+<link rel="stylesheet" href="assets/shadcn.css">
+<script src="assets/common.js"></script>
+<style>
+  .page-h { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .page-h h1 { font-size: 24px; font-weight: 600; letter-spacing: -.02em; }
+  .page-h p { margin: 4px 0 0; color: var(--muted-foreground); }
+  .page-h .actions { align-items: center; }
+  .two { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 16px; }
+  .stack { display: grid; gap: 16px; align-content: start; min-width: 0; }
+  .grid-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+  .int { padding: 16px; display: grid; gap: 12px; align-content: start; }
+  .int .top { display: flex; align-items: center; gap: 10px; }
+  .logo-sq { width: 36px; height: 36px; border-radius: 8px; display: grid; place-items: center; font-weight: 700; font-size: 11px; color: #fff; flex: none; }
+  .scopes { display: flex; flex-wrap: wrap; gap: 4px; align-items: flex-start; }
+  .scopes code { background: var(--muted); padding: 1px 6px; border-radius: 4px; font-size: 11.5px; }
+  h2.sec { font-size: 14px; font-weight: 500; margin: 8px 0 -4px; color: var(--muted-foreground); }
+  .skill { padding: 20px; display: grid; gap: 12px; align-content: start; }
+  .skill .top { display: flex; align-items: center; gap: 12px; }
+  .kind-ic { width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; flex: none; color: var(--kc); background: color-mix(in oklch, var(--kc) 14%, transparent); }
+  .policy { display: flex; gap: 14px; align-items: flex-start; padding: 14px 24px; border-top: 1px solid var(--border); }
+  .policy .t { font-weight: 500; }
+  .policy .dsc { color: var(--muted-foreground); font-size: 13px; }
+  .policy .switch { margin-left: auto; margin-top: 2px; }
+
+  /* console */
+  .console { display: grid; grid-template-rows: 1fr auto; height: calc(100vh - 230px); min-height: 460px; overflow: hidden; }
+  .console .log { overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 18px; }
+  .console .q { align-self: flex-end; background: var(--primary); color: var(--primary-foreground); padding: 8px 14px; border-radius: 14px 14px 4px 14px; max-width: 80%; }
+  .console .a { display: grid; grid-template-columns: 32px 1fr; gap: 10px; max-width: 900px; }
+  .console .a .av { width: 32px; height: 32px; border-radius: 8px; background: var(--primary); color: var(--primary-foreground); display: grid; place-items: center; font-weight: 600; }
+  .console .bottom { border-top: 1px solid var(--border); padding: 12px 16px; display: grid; gap: 10px; }
+  .console .row { display: flex; gap: 8px; }
+  .empty { text-align: center; padding: 48px 16px; color: var(--muted-foreground); display: grid; gap: 8px; justify-items: center; }
+  .empty b { color: var(--foreground); font-weight: 600; }
+
+  /* ===== Workflow builder ===== */
+  .wf-page { display: grid; gap: 12px; }
+  .wf-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .wf-bar h1 { font-size: 20px; font-weight: 600; letter-spacing: -.02em; margin-right: 4px; }
+  .wf-below { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 12px; align-items: start; }
+  .palette .list { overflow-y: auto; padding: 0 12px 12px; display: grid; gap: 2px; }
+  .palette .grp { font-size: 12px; font-weight: 500; color: var(--muted-foreground); padding: 10px 4px 4px; }
+  .pal-item { display: flex; align-items: center; gap: 8px; padding: 6px; border-radius: calc(var(--radius) - 2px); cursor: grab; font-size: 13.5px; border: 1px solid transparent; user-select: none; }
+  .pal-item:hover { background: var(--accent); }
+  .pal-item:active { cursor: grabbing; }
+  .pal-item .kind-ic { width: 26px; height: 26px; border-radius: 6px; }
+  .pal-item .kind-ic svg { width: 14px; height: 14px; }
+  .pal-item .add { margin-left: auto; opacity: 0; }
+  .pal-item:hover .add { opacity: 1; }
+
+  .node { width: min(380px, 100%); display: flex; align-items: center; gap: 10px; padding: 7px 12px; background: var(--card); border: 1px solid var(--border); border-left: 3px solid var(--kc);
+    border-radius: var(--radius); box-shadow: 0 1px 3px rgb(0 0 0 / .06); cursor: grab; position: relative; transition: box-shadow .15s, border-color .15s, opacity .15s; }
+  .node:hover { box-shadow: 0 2px 8px rgb(0 0 0 / .08); }
+  .node.sel { box-shadow: 0 0 0 2px var(--ring); }
+  .node.ghost { opacity: .35; }
+  .node .grip { color: var(--muted-foreground); opacity: .6; }
+  .node .txt { flex: 1; min-width: 0; }
+  .node .k { font-size: 11px; font-weight: 500; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: .04em; }
+  .node .l { font-weight: 500; font-size: 14px; }
+  .node .sum { font-size: 12px; color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .node .del { opacity: 0; }
+  .node:hover .del { opacity: 1; }
+  .node .state { position: absolute; top: -9px; right: -9px; width: 20px; height: 20px; border-radius: 50%; display: none; place-items: center; background: var(--good); color: #fff; }
+  .node .state svg { width: 12px; height: 12px; stroke-width: 3; }
+  .node.done .state { display: grid; }
+  .node.running { box-shadow: 0 0 0 2px var(--kc); animation: pulse 1s ease infinite; }
+  .node.waiting { box-shadow: 0 0 0 2px var(--warn); }
+  @keyframes pulse { 50% { box-shadow: 0 0 0 5px color-mix(in oklch, var(--kc) 25%, transparent); } }
+  .node.highlight { box-shadow: 0 0 0 2px var(--k-delivery); }
+
+  .dz { width: min(380px, 100%); height: 22px; display: grid; place-items: center; position: relative; transition: height .12s; }
+  .dz::before { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; transform: translateX(-50%); background: var(--border); }
+  .dz::after { content: ""; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); border: 5px solid transparent; border-top-color: var(--border); border-bottom: 0; }
+  .dz.first::before, .dz.first::after, .dz.last::before, .dz.last::after { display: none; }
+  .dz .plus { position: relative; z-index: 1; opacity: 0; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--border); background: var(--background); display: grid; place-items: center; color: var(--muted-foreground); cursor: pointer; }
+  .dz:hover .plus { opacity: 1; }
+  .dz .plus svg { width: 12px; height: 12px; }
+  .dragging .dz { height: 46px; }
+  .dragging .dz .drop { position: absolute; inset: 6px 0; border: 1.5px dashed var(--input); border-radius: var(--radius); background: var(--background); z-index: 1; display: grid; place-items: center; font-size: 12px; color: var(--muted-foreground); }
+  .dz .drop { display: none; }
+  .dragging .dz .drop { display: grid; }
+  .dragging .dz .plus { display: none; }
+  .dz.over .drop { border-color: var(--primary); color: var(--foreground); background: var(--accent); }
+  .dz.first, .dz.last { height: 8px; }
+  .dragging .dz.first, .dragging .dz.last { height: 46px; }
+  .end-cap { margin-top: 6px; font-size: 12px; color: var(--muted-foreground); display: flex; align-items: center; gap: 6px; }
+
+  .insp .fields { display: grid; gap: 14px; }
+  .switch-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 14px; font-weight: 500; }
+  .val { display: grid; gap: 8px; font-size: 13px; }
+  .val div { display: flex; gap: 8px; align-items: flex-start; }
+  .val svg { margin-top: 2px; }
+  .val .good { color: var(--good); } .val .warn { color: var(--warn); } .val .bad { color: var(--destructive); }
+  /* map canvas: pannable / zoomable, with floating panels */
+  .map { position: relative; height: max(540px, calc(100vh - 140px)); overflow: hidden; border-radius: calc(var(--radius) + 4px); border: 1px solid var(--border); cursor: grab; touch-action: none;
+    background-color: var(--card); background-image: radial-gradient(color-mix(in oklch, var(--foreground) 16%, transparent) 1px, transparent 1px); background-size: 18px 18px; }
+  .map.panning { cursor: grabbing; }
+  .world { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
+  .world .flow { width: 420px; padding: 8px 20px; }
+  .world .node, .world .dz { width: 380px; }
+  .fp { position: absolute; z-index: 5; display: flex; flex-direction: column; max-height: calc(100% - 24px); cursor: default;
+    background: color-mix(in oklch, var(--card) 94%, transparent); backdrop-filter: blur(8px); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 4px 16px rgb(0 0 0 / .08); }
+  .fp.moving { box-shadow: 0 10px 30px rgb(0 0 0 / .18); }
+  .fp-h { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 10px; border-bottom: 1px solid var(--border); font-size: 13px; font-weight: 600; cursor: move; user-select: none; white-space: nowrap; }
+  .fp-h > svg.i { color: var(--muted-foreground); width: 14px; height: 14px; }
+  .fp-sub { font-weight: 400; font-size: 12px; color: var(--muted-foreground); }
+  .fp.collapsed .fp-b, #fp-steps.collapsed .fp-b { display: none; }
+  .fp.collapsed .fp-h { border-bottom: 0; }
+  .fp-b { min-height: 0; overflow-y: auto; }
+  #fp-steps { width: 240px; max-height: calc(100% - 80px); }
+  #fp-steps .fp-b { display: flex; flex-direction: column; overflow: hidden; }
+  #fp-insp { width: 300px; }
+  .fp .card { border: 0; box-shadow: none; background: transparent; border-radius: 0; }
+  .fp-legend .fp-h { border-bottom: 0; font-weight: 400; color: var(--muted-foreground); font-size: 12px; gap: 10px; padding: 6px 12px; }
+  .fp-legend .lg { display: inline-flex; align-items: center; gap: 5px; }
+  .fp-legend .lg i { width: 8px; height: 8px; border-radius: 2px; background: var(--kc); display: inline-block; }
+  .map-ctrls { position: absolute; left: 12px; bottom: 12px; z-index: 6; display: flex; align-items: center; gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); box-shadow: var(--shadow); cursor: default; }
+  .map-ctrls .btn { font-size: 16px; }
+  .zoom-pct { min-width: 44px; text-align: center; font-size: 12px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+  .map-hint { font-size: 12px; color: var(--muted-foreground); padding: 0 8px 0 4px; white-space: nowrap; }
+  @media (max-width: 1100px) { .map-hint { display: none; } .wf-below { grid-template-columns: 1fr; } }
+  @media (max-width: 760px) { .map { height: 75vh; } #fp-insp { width: min(300px, calc(100% - 24px)); } }
+  #fp-steps .list { flex: 1; min-height: 0; }
+  .add-menu { position: absolute; z-index: 30; width: 240px; max-height: 320px; overflow-y: auto; background: var(--popover); color: var(--popover-foreground); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 8px 24px rgb(0 0 0 / .12); padding: 4px; }
+  .add-menu .grp { font-size: 12px; color: var(--muted-foreground); padding: 6px 8px 2px; }
+  .add-menu button { display: flex; width: 100%; align-items: center; gap: 8px; padding: 6px 8px; border: 0; border-radius: 6px; background: transparent; cursor: pointer; font-size: 13.5px; text-align: left; }
+  .add-menu button:hover { background: var(--accent); }
+
+  @media (max-width: 1000px) { .two { grid-template-columns: 1fr; } }
+
+  /* ===== live backend UI ===== */
+  .md { line-height: 1.55; }
+  .md a { text-decoration: underline; text-underline-offset: 2px; font-weight: 500; }
+  .md code { background: var(--muted); padding: 1px 5px; border-radius: 4px; font-size: 12.5px; }
+  .md pre { background: var(--muted); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; overflow-x: auto; margin: 6px 0; font-family: var(--mono); font-size: 12.5px; white-space: pre; }
+  .step .tag { font-size: 11px; padding: 0 6px; }
+  .int .status { font-size: 12.5px; color: var(--muted-foreground); min-height: 18px; overflow-wrap: anywhere; }
+  .int .status.ok { color: var(--good); } .int .status.err { color: var(--destructive); }
+  .int.disabled { opacity: .55; }
+  .modal-bg { position: fixed; inset: 0; z-index: 80; background: rgb(0 0 0 / .45); display: grid; place-items: center; padding: 16px; }
+  .modal { width: min(520px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; }
+  .modal form { display: grid; gap: 14px; }
+  .modal .foot { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+  .hint { font-size: 12.5px; color: var(--muted-foreground); font-weight: 400; }
+  .result { padding: 10px 12px; border-radius: 8px; font-size: 13px; overflow-wrap: anywhere; }
+  .result.ok { background: var(--good-soft); color: var(--good); } .result.err { background: var(--bad-soft); color: var(--destructive); }
+  .appr { padding: 14px 24px; border-top: 1px solid var(--border); display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+  .appr .grow { flex: 1; min-width: 240px; }
+  .run-detail td { background: color-mix(in oklch, var(--muted) 40%, transparent); }
+  .run-detail .agent-steps { max-width: 820px; }
+  .tbl input.input, .tbl select.input { height: 32px; font-size: 13px; }
+  .add-user { display: grid; grid-template-columns: 1.2fr 1.4fr .9fr 1.1fr auto; gap: 8px; padding: 12px 24px 20px; align-items: end; }
+  @media (max-width: 900px) { .add-user { grid-template-columns: 1fr 1fr; } }
+  .console-head { display: flex; gap: 8px; align-items: center; }
+  .conv-status { font-size: 12px; }
+</style>
+</head>
+<body class="shadcn">
+<div class="sb-wrapper" id="shell">
+  <aside class="sidebar">
+    <div class="sb-header">
+      <a class="sb-lg" href="#ask"><div class="sb-logo">S</div><div class="sb-text"><div class="t">Sidekick</div><div class="s">control plane</div></div></a>
+    </div>
+    <div class="sb-content" id="nav">
+      <div class="sb-group">
+        <div class="sb-label">Platform</div>
+        <a class="sb-btn" href="#ask" data-v="ask"><svg class="i" viewBox="0 0 24 24"><path d="M12 3l1.9 5.8L20 11l-6.1 2.2L12 19l-1.9-5.8L4 11l6.1-2.2z"/></svg><span class="sb-text">Ask Sidekick</span></a>
+        <a class="sb-btn" href="#workflows" data-v="workflows"><svg class="i" viewBox="0 0 24 24"><rect width="8" height="8" x="3" y="3" rx="2"/><path d="M7 11v4a2 2 0 0 0 2 2h4"/><rect width="8" height="8" x="13" y="13" rx="2"/></svg><span class="sb-text">Workflows</span></a>
+        <a class="sb-btn" href="#runs" data-v="runs"><svg class="i" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg><span class="sb-text">Runs &amp; approvals</span><span class="sb-badge" id="appr-count" hidden>0</span></a>
+      </div>
+      <div class="sb-group">
+        <div class="sb-label">Configure</div>
+        <a class="sb-btn" href="#model" data-v="model"><svg class="i" viewBox="0 0 24 24"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M9 13h.01M15 13h.01M10 17h4"/></svg><span class="sb-text">Model</span></a>
+        <a class="sb-btn" href="#skills" data-v="skills"><svg class="i" viewBox="0 0 24 24"><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M12 8V4H8"/><path d="M2 14h2M20 14h2M15 13v2M9 13v2"/></svg><span class="sb-text">Skills</span></a>
+        <a class="sb-btn" href="#replies" data-v="replies"><svg class="i" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg><span class="sb-text">Replies</span></a>
+        <a class="sb-btn" href="#integrations" data-v="integrations"><svg class="i" viewBox="0 0 24 24"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/></svg><span class="sb-text">Integrations</span></a>
+        <a class="sb-btn" href="#access" data-v="access"><svg class="i" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg><span class="sb-text">Access control</span></a>
+        <a class="sb-btn" href="#settings" data-v="settings"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span class="sb-text">Settings</span></a>
+      </div>
+    </div>
+    <div class="sb-footer">
+      <div class="sb-lg"><div class="sb-avatar" id="owner-av">·</div><div class="sb-text" style="min-width:0"><div class="t" id="owner-name">Owner</div><div class="s" id="owner-email" style="overflow:hidden;text-overflow:ellipsis"></div></div></div>
+    </div>
+  </aside>
+
+  <main class="inset">
+    <header class="inset-h">
+      <button class="icon-btn" id="sb-toggle" title="Toggle sidebar"><svg class="i" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg></button>
+      <span class="separator-v"></span>
+      <nav class="crumb"><span>Sidekick</span><span>/</span><b id="crumb">Ask Sidekick</b></nav>
+      <span style="flex:1"></span>
+      <button class="icon-btn" id="theme-btn" title="Toggle light / dark"></button>
+    </header>
+    <div class="inset-c" id="view"></div>
+  </main>
+</div>
+
+<script src="assets/workflows.js"></script>
+<script>
+// ---------- icons ----------
+const IC = {
+  trigger: '<path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>',
+  skill: '<rect width="16" height="12" x="4" y="8" rx="2"/><path d="M12 8V4H8"/><path d="M2 14h2M20 14h2M15 13v2M9 13v2"/>',
+  gate: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>',
+  delivery: '<circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><path d="M6 9v12"/>',
+  notify: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
+  grip: '<circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/>',
+  plus: '<path d="M5 12h14M12 5v14"/>',
+  trash: '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+  play: '<polygon points="6 3 20 12 6 21 6 3"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  alert: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  x: '<circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/>',
+  up: '<path d="m18 15-6-6-6 6"/>', down: '<path d="m6 9 6 6 6-6"/>',
+  reset: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
+  trend: '<path d="m22 7-8.5 8.5-5-5L2 17"/><path d="M16 7h6v6"/>',
+  stop: '<rect x="6" y="6" width="12" height="12" rx="1"/>',
+  fit: '<path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>',
+  flag: '<path d="M4 22V4a1 1 0 0 1 .4-.8A6 6 0 0 1 8 2c3 0 5 2 7.33 2q2 0 3.67-1v12q-1.67 1-3.67 1C13 16 11 14 8 14a6 6 0 0 0-4 1"/>',
+};
+const ic = (n, extra = "") => `<svg class="i" viewBox="0 0 24 24" ${extra}>${IC[n]}</svg>`;
+const KIND_LABEL = { trigger: "Trigger", skill: "Agent skill", gate: "Gate", delivery: "Delivery", notify: "Notify" };
+const kindIc = (kind) => `<span class="kind-ic" style="--kc:var(--k-${kind})">${ic(kind)}</span>`;
+
+// ---------- API ----------
+async function api(method, path, body) {
+  const r = await fetch(path, { method, headers: body ? { "Content-Type": "application/json" } : {}, body: body ? JSON.stringify(body) : undefined });
+  const data = r.status === 204 ? null : await r.json().catch(() => null);
+  if (!r.ok) throw new Error((data && (typeof data.detail === "string" ? data.detail : data.detail?.[0]?.msg)) || `HTTP ${r.status}`);
+  return data;
+}
+const GET = (p) => api("GET", p);
+
+// ---------- shell ----------
+renderThemeIcon();
+document.getElementById("theme-btn").onclick = () => toggleTheme();
+document.getElementById("sb-toggle").onclick = () => document.getElementById("shell").classList.toggle("collapsed");
+
+let SUMMARY = { pending_approvals: 0, owner: { name: "Owner", email: "" } };
+let BRAIN_MODE = "scripted";  // scripted | llm — Configure → Model → Brain mode
+async function refreshSummary() {
+  try { SUMMARY = await GET("/api/summary"); } catch (e) { return; }
+  if (SUMMARY.brain_mode !== BRAIN_MODE) {
+    BRAIN_MODE = SUMMARY.brain_mode;
+    if (["ask", "model"].includes((location.hash || "#ask").slice(1))) route(true);
+  }
+  const b = document.getElementById("appr-count");
+  b.textContent = SUMMARY.pending_approvals; b.hidden = !SUMMARY.pending_approvals;
+  const o = SUMMARY.owner;
+  document.getElementById("owner-name").textContent = `${o.name} · Owner`;
+  document.getElementById("owner-email").textContent = o.email;
+  document.getElementById("owner-av").textContent = o.name.split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase();
+}
+refreshSummary(); setInterval(refreshSummary, 8000);
+const ACTOR = () => ({ source: "dashboard", id: SUMMARY.owner.email, name: SUMMARY.owner.name });
+
+// ---------- helpers ----------
+const SKILL_NAMES = { debugger: "Debugger", developer: "Developer", tester: "Tester", infra: "Infra Ops", analyst: "Infra Q&A", agent: "LLM agent", devrev: "DevRev connector" };
+const SUGGESTED = [
+  { label: "There was a spike at 7:00 AM — what caused it?", text: "there was a latency spike at 7:00 am this morning, what is the reason?" },
+  { label: "Fix it", text: "fix it" },
+  { label: "Status", text: "status" },
+  { label: "Build wishlist (TKT-1039)", text: "build the wishlist feature from TKT-1039" },
+  { label: "Build it Tinder-style", text: "build TKT-1039 as a tinder style shopping experience" },
+  { label: "What's running & what does it cost?", text: "what's running in our AWS account and what does it cost?" },
+];
+function statusBadge(s) {
+  const m = { done: ["good", "Done"], running: ["info", "Running"], failed: ["bad", "Failed"], pending: ["warn", "Awaiting approval"], approved: ["good", "Approved"],
+    rejected: ["bad", "Rejected"], connected: ["good", "Connected"], configured: ["warn", "Not tested"], error: ["bad", "Error"], not_configured: ["", "Not configured"] };
+  const [c, l] = m[s] || ["", s];
+  return `<span class="badge ${c}">${l}</span>`;
+}
+function ago(ts) {
+  if (!ts) return "—";
+  const s = (Date.now() - new Date(ts).getTime()) / 1000;
+  if (s < 60) return "just now"; if (s < 3600) return `${Math.floor(s / 60)}m ago`; if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return new Date(ts).toLocaleDateString();
+}
+function dur(a, b) { if (!a || !b) return "—"; return `${Math.round((new Date(b) - new Date(a)) / 1000)}s`; }
+// Slack-style mrkdwn → HTML (the brain writes one format for Slack and the dashboard)
+function md(text) {
+  let h = esc(text || "");
+  const blocks = [];
+  h = h.replace(/```([\s\S]*?)```/g, (_, c) => { blocks.push(`<pre>${c.replace(/^\n/, "")}</pre>`); return `\u0000${blocks.length - 1}\u0000`; });
+  h = h.replace(/&lt;(https?:\/\/[^|\s&]+)\|([^&\n]+?)&gt;/g, '<a href="$1" target="_blank" rel="noopener">$2</a>')  // Slack-style <url|text> links
+       .replace(/`([^`\n]+)`/g, "<code>$1</code>")
+       .replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s).,:;!?]|$)/g, "$1<b>$2</b>")
+       .replace(/(^|[\s(])_([^_\n]+)_(?=[\s).,:;!?]|$)/g, "$1<i>$2</i>")
+       .replace(/\n/g, "<br>");
+  return h.replace(/\u0000(\d+)\u0000/g, (_, i) => blocks[+i]);
+}
+function pageH(title, desc, actions = "") { return `<div class="page-h"><div><h1>${title}</h1><p>${desc}</p></div><div class="actions">${actions}</div></div>`; }
+function stepHTML(s) {
+  const live = s.integration && BRAIN_MODE === "llm" && s.tool.includes("_");  // LLM tool calls are real
+  const tag = s.integration ? `<span class="badge tag ${s.connected ? "good" : ""}">${esc(s.integration)}${s.connected ? " ✓" : live ? " · not connected" : " · simulated"}</span>` : "";
+  const icon = s.status === "running" ? '<span class="spin"></span>' : s.status === "error" ? '<span class="ok" style="color:var(--destructive)">✕</span>' : '<span class="ok">✓</span>';
+  return `<div class="step">${icon}<span class="tool">${esc(s.tool)}</span><span class="dim">${esc(s.detail)}</span>${tag}<span class="st muted">${s.status === "running" ? "running…" : (s.secs ?? "") + "s"}</span></div>`;
+}
+function actionsHTML(actions) {
+  if (!actions?.length) return "";
+  return `<div class="actions">${actions.map(a => a.url ? `<a class="btn sm primary" href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.label)}</a>` : `<button class="btn sm ${a.style === "primary" ? "primary" : a.style === "danger" ? "destructive" : ""}" data-act='${esc(JSON.stringify(a))}'>${esc(a.label)}</button>`).join("")}</div>`;
+}
+
+// ---------- views ----------
+const TITLES = { ask: "Ask Sidekick", workflows: "Workflows", runs: "Runs & approvals", model: "Model", skills: "Skills", replies: "Replies", integrations: "Integrations", access: "Access control", settings: "Settings" };
+const views = {
+  ask() {
+    return `
+      ${pageH("Ask Sidekick", "Same brain as Slack — conversations here are stored and show up in Runs.",
+        `<a class="badge ${BRAIN_MODE === "llm" ? "good" : ""}" href="#model" title="Change in Configure → Model">${BRAIN_MODE === "llm" ? "● LLM agent" : "Scripted demo"}</a><span class="badge conv-status" id="conv-status"></span><button class="btn sm" id="console-new">${ic("plus")} New conversation</button>`)}
+      <div id="console-slot"></div>`;
+  },
+
+  async workflows() { if (!WF_CACHE.length) await loadWorkflows(); return `<div id="wf-root"></div>`; },
+
+  async runs() {
+    const [approvals, runs] = await Promise.all([GET("/api/approvals?status=pending"), GET("/api/runs?limit=60")]);
+    return `
+      ${pageH("Runs & approvals", "Everything Sidekick has done or is doing, from Slack and the dashboard. Auto-refreshes.")}
+      <div class="card"><div class="card-h"><div><h3>Waiting for approval</h3><div class="card-desc">Approving here also posts in the Slack thread it came from</div></div>${approvals.length ? `<span class="badge warn">${approvals.length} pending</span>` : ""}</div>
+        ${approvals.length ? approvals.map(a => `<div class="appr"><div class="grow"><div style="font-weight:500">${esc(a.title)}</div>
+            <div class="text-muted" style="font-size:13px">${esc(a.summary)}</div>
+            <div class="text-muted" style="font-size:12px">${a.source === "slack" ? `Slack · ${esc(a.channel)}` : a.source === "devrev" ? `DevRev Computer · ${esc(a.channel)}` : "Dashboard console"} · requested by ${esc(a.requested_by || "?")} · ${ago(a.created_at)}</div></div>
+            <div class="actions"><button class="btn sm primary" data-decide="${a.id}:approve">Approve</button><button class="btn sm" data-decide="${a.id}:reject">Reject</button></div></div>`).join("")
+          : `<div class="card-b text-muted">Nothing waiting. Ask Sidekick to <i>fix</i> something and its approval request lands here.</div>`}
+      </div>
+      <div class="card"><div class="card-h"><div><h3>Runs</h3><div class="card-desc">Click a run to see its steps and result</div></div></div>
+        ${runs.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Task</th><th>Skill</th><th>Source</th><th>Requested by</th><th>Started</th><th>Duration</th><th>Status</th></tr></thead><tbody>
+          ${runs.map(r => `<tr class="clickable" data-run-row="${r.id}"><td><div style="font-weight:500">${esc(r.title)}</div><div class="text-muted mono" style="font-size:12px">run #${r.id}</div></td>
+            <td><span class="badge secondary">${SKILL_NAMES[r.skill] || r.skill}</span>${r.model ? `<div class="text-muted" style="font-size:11.5px;margin-top:2px">${esc(r.model)}</div>` : ""}</td><td class="text-muted">${{ slack: "Slack", devrev: "DevRev" }[r.source] || "Dashboard"}</td>
+            <td class="text-muted">${esc(r.requested_by || "")}</td><td class="text-muted">${ago(r.created_at)}</td><td class="text-muted tabular">${dur(r.created_at, r.finished_at)}</td><td>${statusBadge(r.status)}</td></tr>
+            <tr class="run-detail" data-run-detail="${r.id}" ${OPEN_RUNS.has(String(r.id)) ? "" : "hidden"}><td colspan="7"><div class="agent-steps">${r.steps.map(stepHTML).join("")}</div>${r.result ? `<div class="md">${md(r.result.text)}</div>` : ""}</td></tr>`).join("")}
+        </tbody></table></div>` : `<div class="card-b text-muted">No runs yet.</div>`}
+      </div>`;
+  },
+
+  async model() {
+    MODEL = await GET("/api/model");
+    const c = MODEL.config, d = MODEL.default;
+    const isOA = MODEL.providers[c.provider].family === "openai";
+    const oa = MODEL.openai || { models: [], error: null };
+    const effortOk = (id) => !isOA && (MODEL.models.find(m => m.id === id) || { effort: true }).effort;
+    const isAk = c.provider === "akamai_ai";  // OpenAI-compatible Chat Completions on Akamai
+    const client = c.provider === "bedrock" ? `AnthropicBedrockMantle(aws_region="${d.region}")` : isAk ? "OpenAI(api_key=…, base_url=…)" : isOA ? "OpenAI(api_key=…)" : "Anthropic(api_key=…)";
+    const call = isAk ? "client.chat.completions.create" : isOA ? "client.responses.create" : "client.messages.create";
+    const preview = `client = ${client}\n${call}(**${JSON.stringify(d.request, null, 2)},\n    ${isAk ? "messages=…, tools=…" : isOA ? "instructions=…, tools=…, input=…" : "system=…, tools=…, messages=…"})`;
+    // model choices for the per-skill table, by provider family
+    const skillChoices = isOA ? oa.models.map(id => [id, id]) : MODEL.models.map(m => [m.id, m.name]);
+    const modelPicker = isOA ? `
+          ${oa.error ? `<div class="result err">${esc(oa.error)}</div>` : ""}
+          <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
+            <label class="field" style="flex:1;min-width:240px">Model <span class="hint">${oa.models.length ? `${oa.models.length} models available to your key` : "list loads once the key is saved"}</span>
+              <select class="input" id="m-openai"><option value="custom" ${c.model === "custom" ? "selected" : ""}>Custom model ID…</option>
+                ${(oa.models.includes(c.model) || c.model === "custom" ? oa.models : [c.model, ...oa.models]).filter(Boolean).map(id => `<option ${c.model === id ? "selected" : ""}>${esc(id)}</option>`).join("")}</select></label>
+            <button class="btn" id="m-openai-refresh">${ic("reset")} Refresh list</button>
+          </div>`
+      : `<div class="radio-cards">${MODEL.models.map(m => `
+            <div class="radio-card ${c.model === m.id ? "on" : ""}" data-model-pick="${m.id}" role="radio" aria-checked="${c.model === m.id}" tabindex="0"><span class="r"></span>
+              <div><div class="t">${esc(m.name)}${m.id === "claude-opus-5" ? ' <span class="badge" style="margin-left:4px">Default</span>' : ""}</div>
+                <div class="d"><code>${c.provider === "bedrock" ? "anthropic." : ""}${m.id}</code></div><div class="d">${esc(m.note)}</div></div></div>`).join("")}
+            <div class="radio-card ${c.model === "custom" ? "on" : ""}" data-model-pick="custom" role="radio" aria-checked="${c.model === "custom"}" tabindex="0"><span class="r"></span>
+              <div style="flex:1"><div class="t">Custom model ID</div><div class="d">Inference profile / ARN / any ID, sent as-is</div></div></div>
+          </div>`;
+    return `
+      ${pageH("Model", "Which model Sidekick runs on — Claude via Bedrock or the Anthropic API, OpenAI, or an OpenAI-compatible endpoint on Akamai. The Strands agent will read exactly this; every run records the model it used.",
+        `<button class="btn primary" id="model-test">${ic("play")} Test model</button>`)}
+      <div id="model-test-out"></div>
+      <div class="card"><div class="card-h"><div><h3>Brain mode</h3><div class="card-desc">How Sidekick answers in Slack and the console. Custom replies, status, approvals and guardrails work the same in both.</div></div></div>
+        <div class="card-b"><div class="radio-cards">
+          <div class="radio-card ${BRAIN_MODE !== "llm" ? "on" : ""}" data-brain-mode="scripted" role="radio" aria-checked="${BRAIN_MODE !== "llm"}" tabindex="0"><span class="r"></span>
+            <div><div class="t">Scripted demo</div><div class="d">Hardcoded flows (spike → fix → approve, wishlist / Tinder previews). No model calls, no cost — safe for demos.</div></div></div>
+          <div class="radio-card ${BRAIN_MODE === "llm" ? "on" : ""}" data-brain-mode="llm" role="radio" aria-checked="${BRAIN_MODE === "llm"}" tabindex="0"><span class="r"></span>
+            <div><div class="t">LLM agent <span class="badge" style="margin-left:4px">Strands</span></div><div class="d">A Strands agent on the model below with real, read-only tools (ShopLite, Prometheus, CloudWatch, EKS, GitHub, Akamai). Proposes changes via approvals. Run <b>Test model</b> first.</div></div></div>
+        </div></div></div>
+      <div class="card"><div class="card-h"><div><h3>Provider</h3><div class="card-desc">Where requests go and how they authenticate. Switching between Claude and OpenAI resets the per-skill overrides.</div></div></div>
+        <div class="card-b"><div class="radio-cards">${Object.entries(MODEL.providers).map(([k, pv]) => `
+          <div class="radio-card ${c.provider === k ? "on" : ""}" data-model-provider="${k}" role="radio" aria-checked="${c.provider === k}" tabindex="0"><span class="r"></span>
+            <div><div class="t">${esc(pv.name)}${k === "bedrock" ? ' <span class="badge" style="margin-left:4px">AWS track</span>' : k === "akamai_ai" ? ' <span class="badge" style="margin-left:4px">Akamai track</span>' : ""}</div><div class="d"><code>${pv.client}</code> · ${esc(pv.auth)}</div></div></div>`).join("")}</div></div></div>
+      <div class="card"><div class="card-h"><div><h3>Default model</h3><div class="card-desc">Used by every skill unless overridden below</div></div></div>
+        <div class="card-b" style="display:grid;gap:16px">
+          ${modelPicker}
+          ${c.model === "custom" ? `<label class="field">Custom model ID<input class="input" id="m-custom" value="${esc(c.custom_model)}" placeholder="${c.provider === "bedrock" ? "e.g. anthropic.claude-sonnet-5" : isOA ? "the exact model ID from the provider" : "e.g. claude-sonnet-5"}"></label>` : ""}
+          <div class="two" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">
+            ${c.provider === "bedrock" ? `<label class="field">AWS region<input class="input" id="m-region" list="aws-regions" value="${esc(c.region)}"><span class="hint">Global endpoint routing is available in every listed region</span></label>
+            <label class="field">Bedrock API (LLM agent)<select class="input" id="m-transport"><option value="messages" ${c.bedrock_transport !== "converse" ? "selected" : ""}>Messages API — Claude in Bedrock</option><option value="converse" ${c.bedrock_transport === "converse" ? "selected" : ""}>Converse API — Strands BedrockModel</option></select><span class="hint">Messages API is the documented path for Opus 4.7+; Converse may need an inference-profile ID (use Custom)</span></label>` : ""}
+            ${isOA ? "" : `<label class="field">Effort<select class="input" id="m-effort" ${effortOk(c.model) ? "" : "disabled"}>${MODEL.efforts.map(e => `<option ${c.effort === e ? "selected" : ""}>${e}</option>`).join("")}</select>
+              <span class="hint">${effortOk(c.model) ? "low = fast & cheap · high = default · xhigh/max for hard agentic work" : "This model doesn't take an effort setting"}</span></label>`}
+            <label class="field">Max output tokens<input class="input" type="number" min="256" max="128000" step="256" id="m-max" value="${c.max_tokens}"><span class="hint">Per response${isOA ? " (max_output_tokens)" : "; use streaming above ~16k"}</span></label>
+          </div>
+          <datalist id="aws-regions">${["us-east-1", "us-east-2", "us-west-2", "us-west-1", "ca-central-1", "eu-west-1", "eu-west-2", "eu-west-3", "eu-central-1", "eu-north-1", "ap-south-1", "ap-northeast-1", "ap-southeast-1", "ap-southeast-2", "sa-east-1"].map(r => `<option value="${r}">`).join("")}</datalist>
+        </div></div>
+      <div class="card"><div class="card-h"><div><h3>Per-skill overrides</h3><div class="card-desc">e.g. a cheaper model for Infra Q&amp;A, a stronger one for Developer</div></div></div>
+        <div class="table-wrap"><table class="tbl"><thead><tr><th>Skill</th><th>Model</th>${isOA ? "" : "<th>Effort</th>"}<th>Resolves to</th><th></th></tr></thead><tbody>
+          ${MODEL.skills.map(k => { const o = (c.skills || {})[k.key] || {}; return `<tr>
+            <td style="font-weight:500">${esc(k.skill_name)}</td>
+            <td><select class="input" style="width:auto;max-width:260px" data-skill-model="${k.key}"><option value="">Default</option>${skillChoices.map(([id, name]) => `<option value="${esc(id)}" ${o.model === id ? "selected" : ""}>${esc(name)}</option>`).join("")}</select></td>
+            ${isOA ? "" : `<td><select class="input" style="width:auto" data-skill-effort="${k.key}" ${effortOk(o.model || c.model) ? "" : "disabled"}><option value="">Default</option>${MODEL.efforts.map(e => `<option ${o.effort === e ? "selected" : ""}>${e}</option>`).join("")}</select></td>`}
+            <td class="text-muted"><code>${esc(k.model_id || "—")}</code>${k.effort ? " · " + k.effort : ""} ${k.overridden ? '<span class="badge info">override</span>' : ""}</td>
+            <td><button class="btn ghost sm" data-model-test-skill="${k.key}">Test</button></td></tr>`; }).join("")}
+        </tbody></table></div></div>
+      <div class="card"><div class="card-h"><div><h3>Request preview</h3><div class="card-desc">What the agent sends for the default model (Python SDK)${isOA ? " · OpenAI Responses API" : " · thinking is adaptive by default on current Claude models"}</div></div></div>
+        <div class="card-b"><div class="md"><pre>${esc(preview)}</pre></div></div></div>`;
+  },
+
+  async replies() {
+    const rows = await GET("/api/replies");
+    const sel = (id, v) => `<select class="input" style="width:auto" data-reply-type="${id}">${[["contains", "contains"], ["exact", "is exactly"], ["regex", "matches regex"]].map(([k, l]) => `<option value="${k}" ${v === k ? "selected" : ""}>${l}</option>`).join("")}</select>`;
+    return `
+      ${pageH("Replies", "Your own answers, checked before anything else — in Slack, DMs and the console. Changes apply instantly.")}
+      <div class="card"><div class="card-h"><div><h3>Try it</h3><div class="card-desc">Type a message to see what Sidekick would answer</div></div></div>
+        <div class="card-b" style="display:grid;gap:10px"><div class="row" style="display:flex;gap:8px"><input class="input" id="try-text" placeholder="where are you from?"><button class="btn" id="try-btn">Try</button></div><div id="try-out"></div></div></div>
+      <div class="card"><div class="card-h"><div><h3>Custom replies</h3><div class="card-desc">First enabled match wins. Placeholders: <code>{agent_name}</code> <code>{user}</code> <code>{status}</code> <code>{dashboard_url}</code> · Slack formatting: <code>*bold*</code> <code>_italic_</code> <code>\`code\`</code></div></div></div>
+        ${rows.map(r => `<div class="policy" style="align-items:flex-start">
+            <div style="flex:1;display:grid;gap:8px;min-width:0">
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="text-muted" style="font-size:13px">When the message</span>${sel(r.id, r.match_type)}
+                <input class="input" style="flex:1;min-width:180px" data-reply-pattern="${r.id}" value="${esc(r.pattern)}"></div>
+              <textarea class="input" rows="2" data-reply-response="${r.id}">${esc(r.response)}</textarea>
+            </div>
+            <div style="display:grid;gap:8px;justify-items:end"><label class="switch"><input type="checkbox" ${r.enabled ? "checked" : ""} data-reply-enabled="${r.id}"><span class="track"></span></label>
+              <button class="btn ghost icon sm" data-reply-del="${r.id}" title="Delete">${ic("trash")}</button></div>
+          </div>`).join("") || `<div class="card-b text-muted">No custom replies yet.</div>`}
+        <div class="policy" style="align-items:flex-start;background:color-mix(in oklch, var(--muted) 40%, transparent)">
+          <div style="flex:1;display:grid;gap:8px;min-width:0">
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="text-muted" style="font-size:13px">New: when the message</span>
+              <select class="input" style="width:auto" id="nr-type"><option value="contains">contains</option><option value="exact">is exactly</option><option value="regex">matches regex</option></select>
+              <input class="input" style="flex:1;min-width:180px" id="nr-pattern" placeholder="who made you"></div>
+            <textarea class="input" rows="2" id="nr-response" placeholder="I was set up by {agent_name}'s owner — reply with *help* to see what I can do."></textarea>
+          </div>
+          <button class="btn primary" id="reply-add">${ic("plus")} Add</button>
+        </div>
+      </div>`;
+  },
+
+  async skills() {
+    const skills = await GET("/api/skills");
+    return `
+      ${pageH("Skills", "Each skill is a sub-agent with its own tools and autonomy. A disabled skill makes Sidekick refuse that kind of request.")}
+      <div class="grid-cards">${skills.map(s => `
+        <div class="card skill">
+          <div class="top">${kindIc("skill")}<div style="flex:1"><div style="font-weight:600">${esc(s.name)}</div><div class="text-muted" style="font-size:12px">skill: ${s.key}</div></div>
+            <label class="switch"><input type="checkbox" ${s.enabled ? "checked" : ""} data-skill-enabled="${s.key}"><span class="track"></span></label></div>
+          <div class="text-muted" style="font-size:13.5px">${esc(s.description)}</div>
+          <div class="scopes">${s.tools.map(t => `<code>${esc(t)}</code>`).join("")}</div>
+          <label class="field">Autonomy
+            <select class="input" data-skill-autonomy="${s.key}">${[["suggest", "Suggest only"], ["approval", "Act with approval"], ["auto", "Fully autonomous (non-prod)"]].map(([v, l]) => `<option value="${v}" ${s.autonomy === v ? "selected" : ""}>${l}</option>`).join("")}</select>
+          </label>
+        </div>`).join("")}</div>`;
+  },
+
+  async integrations() {
+    INTEGRATIONS = await GET("/api/integrations");
+    const groups = [...new Set(INTEGRATIONS.map(i => i.group))];
+    return `
+      ${pageH("Integrations", "Credentials are encrypted in Sidekick's database and never sent back to the browser. Test makes a real, read-only API call.")}
+      ${groups.map(g => `<h2 class="sec">${g}</h2><div class="grid-cards">${INTEGRATIONS.filter(i => i.group === g).map(intCard).join("")}</div>`).join("")}`;
+  },
+
+  async access() {
+    const [users, policies] = await Promise.all([GET("/api/users"), GET("/api/policies")]);
+    const roles = ["Owner", "SRE", "Developer", "PM", "Viewer"];
+    return `
+      ${pageH("Access control", "Owner / SRE can approve production changes. Map Slack users by member ID so Sidekick knows who's asking.")}
+      <div class="card"><div class="card-h"><div><h3>People &amp; roles</h3><div class="card-desc">Slack member ID: open the profile in Slack → ⋮ → Copy member ID (looks like U0123ABCD)</div></div></div>
+        <div class="table-wrap"><table class="tbl"><thead><tr><th>Name</th><th>Role</th><th>Slack member ID</th><th>Can approve</th><th></th></tr></thead><tbody>
+        ${users.map(u => `<tr><td><div style="font-weight:500">${esc(u.name)}</div><div class="text-muted" style="font-size:12px">${esc(u.email)}</div></td>
+          <td><select class="input" style="width:auto" data-user-role="${u.id}">${roles.map(r => `<option ${u.role === r ? "selected" : ""}>${r}</option>`).join("")}</select></td>
+          <td><input class="input" style="width:150px" data-user-slack="${u.id}" value="${esc(u.slack_user_id || "")}" placeholder="U0…"></td>
+          <td>${["Owner", "SRE"].includes(u.role) ? '<span class="badge good">Yes</span>' : '<span class="badge">No</span>'}</td>
+          <td style="text-align:right"><button class="btn ghost icon sm" data-user-del="${u.id}" title="Remove">${ic("trash")}</button></td></tr>`).join("")}
+        </tbody></table></div>
+        <div class="add-user">
+          <label class="field">Name<input class="input" id="nu-name" placeholder="Priya"></label>
+          <label class="field">Email<input class="input" id="nu-email" placeholder="priya@shoplite.dev"></label>
+          <label class="field">Role<select class="input" id="nu-role">${roles.map(r => `<option ${r === "Developer" ? "selected" : ""}>${r}</option>`).join("")}</select></label>
+          <label class="field">Slack member ID<input class="input" id="nu-slack" placeholder="optional"></label>
+          <button class="btn primary" id="user-add">${ic("plus")} Add</button>
+        </div>
+      </div>
+      <div class="card"><div class="card-h"><div><h3>Guardrail policies</h3><div class="card-desc">Checked by the brain on every request</div></div></div>
+        ${policies.map(p => `<div class="policy"><div><div class="t">${esc(p.title)}</div><div class="dsc">${esc(p.description)}</div><code class="text-muted">${p.code}</code></div>
+          <label class="switch"><input type="checkbox" ${p.enabled ? "checked" : ""} data-policy="${p.code}"><span class="track"></span></label></div>`).join("")}
+      </div>`;
+  },
+
+  async settings() {
+    const [s, ints, mdl] = await Promise.all([GET("/api/settings"), GET("/api/integrations"), GET("/api/model")]);
+    const st = (k) => ints.find(i => i.key === k) || {};
+    return `
+      ${pageH("Settings", "Agent identity and pacing.", `<button class="btn primary" id="settings-save">Save changes</button>`)}
+      <div class="two">
+        <div class="card"><div class="card-h"><div><h3>Agent</h3><div class="card-desc">How Sidekick shows up in your tools</div></div></div><div class="card-b" style="display:grid;gap:16px">
+          <label class="field">Name<input class="input" id="s-name" value="${esc(s.agent_name)}"></label>
+          <label class="field">Mention handle<input class="input" id="s-handle" value="${esc(s.handle)}"><span class="hint">Used in Slack, Teams and DevRev</span></label>
+          <div class="field">Model<div><a class="btn sm" href="#model">Configure in Model →</a></div></div>
+          <div class="two" style="gap:12px">
+            <label class="field">Step time min (s)<input class="input" type="number" min="0" step="0.5" id="s-dmin" value="${s.step_delay[0]}"></label>
+            <label class="field">Step time max (s)<input class="input" type="number" min="0" step="0.5" id="s-dmax" value="${s.step_delay[1]}"></label>
+          </div>
+          <span class="hint" style="margin-top:-8px">How long each simulated tool call takes, in Slack and here</span>
+        </div></div>
+        <div class="card"><div class="card-h"><div><h3>Runtime</h3><div class="card-desc">Live status</div></div></div><div class="card-b">
+          <dl class="kv">
+            <dt>Brain</dt><dd>v0 — rule-based (if/else on conversation status)</dd>
+            <dt>Orchestration</dt><dd>Strands Agents — next step</dd>
+            <dt>Database</dt><dd><span class="badge good">Connected</span></dd>
+            <dt>Slack bot</dt><dd>${statusBadge(st("slack").status)} <span class="text-muted">${esc(st("slack").status_detail || "")}</span></dd>
+            <dt>Model</dt><dd>${esc(mdl.default.label)} · <code>${esc(mdl.default.model_id)}</code></dd>
+          </dl></div></div>
+      </div>`;
+  },
+};
+
+// ---------- integrations ----------
+let INTEGRATIONS = [];
+function intCard(i) {
+  const cls = i.status === "connected" ? "ok" : i.status === "error" ? "err" : "";
+  const configured = i.status !== "not_configured";
+  return `<div class="card int ${i.disabled ? "disabled" : ""}" data-int-card="${i.key}">
+    <div class="top"><div class="logo-sq" style="background:${i.color}">${esc(i.abbr)}</div><div style="flex:1;min-width:0;font-weight:600">${esc(i.name)}</div>${i.disabled ? '<span class="badge">Soon</span>' : statusBadge(i.status)}</div>
+    <div class="text-muted" style="font-size:13px">${esc(i.description)}</div>
+    <div class="scopes">${i.uses.map(u => `<code>${esc(u)}</code>`).join("")}</div>
+    <div class="status ${cls}">${esc(i.status_detail || (i.last_tested_at ? "" : configured ? "Saved — run a test" : ""))}${i.last_tested_at ? ` <span class="text-muted">· tested ${ago(i.last_tested_at)}</span>` : ""}</div>
+    ${i.disabled ? "" : `<div class="actions">
+      ${i.key === "slack" ? "" : `<button class="btn sm ${configured ? "" : "primary"}" data-int-config="${i.key}">${configured ? "Configure" : "Connect"}</button>`}
+      ${i.key === "slack" && !i.fields.length ? "" : i.key === "slack" ? `<button class="btn sm" data-int-config="slack">Settings</button>` : ""}
+      ${configured || i.key === "slack" ? `<button class="btn sm ghost" data-int-test="${i.key}">Test</button>` : ""}
+      ${configured && i.key !== "slack" ? `<button class="btn sm ghost" data-int-disconnect="${i.key}">Disconnect</button>` : ""}
+    </div>`}
+  </div>`;
+}
+function openIntegrationModal(key) {
+  const i = INTEGRATIONS.find(x => x.key === key);
+  const field = (f) => {
+    const v = f.type === "secret" ? "" : (i.config[f.k] ?? f.default ?? "");
+    const ph = f.type === "secret" ? (f.set ? "•••••••• saved — leave blank to keep" : (f.placeholder || "")) : (f.placeholder || "");
+    return `<label class="field">${esc(f.label)}${f.type === "secret" && f.set ? ' <span class="badge good" style="justify-self:start">saved</span>' : ""}
+      <input class="input" name="${f.k}" type="${f.type === "secret" ? "password" : "text"}" value="${esc(v)}" placeholder="${esc(ph)}" autocomplete="off">
+      ${f.help ? `<span class="hint">${esc(f.help)}</span>` : ""}</label>`;
+  };
+  const m = document.createElement("div");
+  m.className = "modal-bg"; m.id = "int-modal";
+  m.innerHTML = `<div class="card modal"><div class="card-h"><div style="display:flex;gap:10px;align-items:center"><div class="logo-sq" style="background:${i.color}">${esc(i.abbr)}</div>
+      <div><h3>${esc(i.name)}</h3><div class="card-desc">${esc(i.description)}</div></div></div><button class="btn ghost icon sm" data-modal-close>✕</button></div>
+    <form class="card-b" id="int-form">${i.fields.map(field).join("") || '<span class="hint">Nothing to configure.</span>'}
+      <div id="int-result"></div>
+      <div class="foot"><button class="btn" type="button" data-modal-close>Cancel</button><button class="btn" type="submit" value="save">Save</button><button class="btn primary" type="submit" value="test">Save &amp; test</button></div>
+    </form></div>`;
+  document.body.appendChild(m);
+  m.querySelector("input")?.focus();
+  m.addEventListener("click", (e) => { if (e.target === m || e.target.closest("[data-modal-close]")) m.remove(); });
+  m.querySelector("#int-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const values = Object.fromEntries(new FormData(e.target).entries());
+    const res = m.querySelector("#int-result"), btns = m.querySelectorAll("button[type=submit]");
+    btns.forEach(b => (b.disabled = true));
+    try {
+      await api("PUT", `/api/integrations/${key}`, values);
+      if (e.submitter?.value === "test") {
+        res.innerHTML = `<div class="result">Testing…</div>`;
+        const t = await api("POST", `/api/integrations/${key}/test`);
+        res.innerHTML = `<div class="result ${t.test.ok ? "ok" : "err"}">${t.test.ok ? "✓" : "✕"} ${esc(t.test.detail)}</div>`;
+        if (t.test.ok) setTimeout(() => m.remove(), 1200);
+      } else { m.remove(); toast(`${i.name} saved`); }
+      route(true);
+    } catch (err) { res.innerHTML = `<div class="result err">${esc(err.message)}</div>`; }
+    btns.forEach(b => (b.disabled = false));
+  });
+}
+async function testIntegration(key, btn) {
+  btn.disabled = true; btn.textContent = "Testing…";
+  try { const t = await api("POST", `/api/integrations/${key}/test`); toast(`${t.name}: ${t.test.ok ? "✓" : "✕"} ${t.test.detail}`); }
+  catch (e) { toast(e.message); }
+  route(true);
+}
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") document.getElementById("int-modal")?.remove(); });
+
+// ---------- runs ----------
+const OPEN_RUNS = new Set();
+async function decideApproval(id, decision, btn) {
+  btn.closest(".actions").querySelectorAll("button").forEach(b => (b.disabled = true));
+  try {
+    const res = await api("POST", `/api/approvals/${id}/decide`, { decision });
+    toast(res.reply?.text ? res.reply.text.replace(/[*_`]/g, "") : decision === "approve" ? "Approved" : "Rejected");
+  } catch (e) { toast(e.message); }
+  refreshSummary(); route(true);
+}
+
+// ================= Workflow builder =================
+let wfId = "incident";
+let selUid = null;
+let simulating = false;
+
+function stepSummary(st) {
+  const d = STEP_CATALOG[st.type], c = st.config || {};
+  const parts = (d.fields || []).map(f => f.t === "toggle" ? (c[f.k] ? f.l : "") : c[f.k]).filter(Boolean);
+  return parts.length ? parts.join(" · ") : d.desc;
+}
+function nodeHTML(st, i) {
+  const d = STEP_CATALOG[st.type];
+  return `<div class="node ${st.uid === selUid ? "sel" : ""}" draggable="true" data-uid="${st.uid}" style="--kc:var(--k-${d.kind})">
+    <span class="grip">${ic("grip")}</span>${kindIc(d.kind)}
+    <div class="txt"><div class="k">${KIND_LABEL[d.kind]}${d.skill ? " · " + d.skill : ""}</div><div class="l">${esc(d.label)}</div><div class="sum">${esc(stepSummary(st))}</div></div>
+    <button class="btn ghost icon sm del" data-del="${st.uid}" title="Remove step">${ic("trash")}</button>
+    <span class="state">${ic("check")}</span>
+  </div>`;
+}
+function dz(i, cls = "") { return `<div class="dz ${cls}" data-at="${i}"><span class="plus" data-plus="${i}" title="Add step here">${ic("plus")}</span><span class="drop">Drop step here</span></div>`; }
+
+function renderWorkflows() {
+  const root = document.getElementById("wf-root"); if (!root) return;
+  const ws = getWorkflows();
+  const wf = getWorkflow(wfId) || ws[0]; wfId = wf.id;
+  const preset = detectPreset(wf);
+  const hasApproval = wf.steps.some(s => s.type === "approval");
+  const sel = wf.steps.find(s => s.uid === selUid);
+  const val = validateWorkflow(wf);
+
+  root.innerHTML = `
+    <div class="wf-page">
+    <div class="wf-bar">
+      <h1>Workflows</h1>
+      <div class="tabs" id="wf-tabs">${ws.map(w => `<button class="${w.id === wf.id ? "on" : ""}" data-wf="${w.id}"><span class="dot" style="color:${w.active ? "var(--good)" : "var(--muted-foreground)"}"></span>${esc(w.name)}</button>`).join("")}</div>
+      <span style="flex:1"></span>
+      <div class="actions"><button class="btn" id="wf-sim">${ic("play")} Simulate run</button><button class="btn ghost" id="wf-reset">${ic("reset")} Reset</button><button class="btn primary" id="wf-publish">Publish v${wf.version + 1}</button></div>
+    </div>
+
+    <div class="map" id="canvas">
+      <div class="world" id="world">
+        <div class="flow" id="flow">
+          ${dz(0, "first")}
+          ${wf.steps.map((st, i) => nodeHTML(st, i) + dz(i + 1, i === wf.steps.length - 1 ? "last" : "")).join("")}
+          ${wf.steps.length ? `<div class="end-cap">${ic("flag")} End of workflow</div>` : `<div class="empty"><b>Empty workflow</b><span>Drag a trigger here to start.</span></div>`}
+        </div>
+      </div>
+
+      <div class="fp ${panels.steps.c ? "collapsed" : ""}" id="fp-steps" data-panel="steps">
+        <div class="fp-h">${ic("grip")}<span>Steps</span><span class="fp-sub">drag onto the flow</span><span style="flex:1"></span><button class="btn ghost icon sm" data-collapse="steps" title="${panels.steps.c ? "Expand" : "Collapse"}">${ic(panels.steps.c ? "down" : "up")}</button></div>
+        <div class="fp-b palette">
+          <div style="padding:8px 12px 4px"><input class="input" id="pal-q" placeholder="Search steps…" style="height:32px"></div>
+          <div class="list" id="pal-list">${paletteHTML("")}</div>
+        </div>
+      </div>
+
+      <div class="fp ${panels.insp.c ? "collapsed" : ""}" id="fp-insp" data-panel="insp">
+        <div class="fp-h">${ic("grip")}<span>Inspector</span><span class="fp-sub">${sel ? "step" : "workflow"}</span><span style="flex:1"></span><button class="btn ghost icon sm" data-collapse="insp" title="${panels.insp.c ? "Expand" : "Collapse"}">${ic(panels.insp.c ? "down" : "up")}</button></div>
+        <div class="fp-b insp">${sel ? inspectorStep(sel, wf) : inspectorWorkflow(wf)}</div>
+      </div>
+
+      <div class="fp fp-legend" id="fp-legend" data-panel="legend">
+        <div class="fp-h">${ic("grip")}${Object.keys(KIND_LABEL).map(k => `<span class="lg" style="--kc:var(--k-${k})"><i></i>${KIND_LABEL[k]}</span>`).join("")}</div>
+      </div>
+
+      <div class="map-ctrls">
+        <button class="btn icon sm" data-zoom="out" title="Zoom out">−</button>
+        <span class="zoom-pct" id="zoom-pct">100%</span>
+        <button class="btn icon sm" data-zoom="in" title="Zoom in">+</button>
+        <button class="btn icon sm" data-zoom="fit" title="Fit to screen">${ic("fit")}</button>
+        <span class="map-hint">Drag background to pan · scroll to zoom · drag panels by their header</span>
+      </div>
+    </div>
+
+    <div class="wf-below">
+      ${hasApproval ? `<div class="card">
+        <div class="card-h"><div><h3>After the ${wf.id === "incident" ? "fix" : "change"} is approved</h3><div class="card-desc">Quick configuration — rewrites every step after <b>Human approval</b>. Sidekick follows this in Slack, Teams and DevRev.</div></div>${preset === "custom" ? '<span class="badge warn">Custom</span>' : ""}</div>
+        <div class="card-b"><div class="radio-cards">${Object.entries(DELIVERY_PRESETS).map(([k, p]) => `
+          <div class="radio-card ${preset === k ? "on" : ""}" data-preset="${k}" role="radio" aria-checked="${preset === k}" tabindex="0"><span class="r"></span><div><div class="t">${p.label}${k === "staging" ? ' <span class="badge" style="margin-left:4px">Default</span>' : ""}</div><div class="d">${p.desc}</div></div></div>`).join("")}</div></div>
+      </div>` : ""}
+      <div class="card"><div class="card-h"><div><h3>Validation</h3><div class="card-desc">${esc(wf.desc)} · checked against your guardrail policies</div></div></div>
+        <div class="card-b val">${val.map(([c, t]) => `<div class="${c}">${ic(c === "good" ? "check" : c === "warn" ? "alert" : "x")}<span style="color:var(--foreground)">${t}</span></div>`).join("")}</div></div>
+    </div>
+    </div>`;
+  initMap();
+}
+
+// ---------- map: pan / zoom / floating panels ----------
+const mapView = { x: null, y: 24, z: 1 };   // x === null → fit on next render
+const panels = { steps: { x: 12, y: 12, c: false }, insp: { x: null, y: 12, c: false }, legend: { x: null, y: null } };
+let justPanned = false;
+
+function applyView(animate) {
+  const world = document.getElementById("world"), map = document.getElementById("canvas"); if (!world) return;
+  world.style.transition = animate ? "transform .3s ease" : "";
+  world.style.transform = `translate(${mapView.x}px, ${mapView.y}px) scale(${mapView.z})`;
+  map.style.backgroundPosition = `${mapView.x}px ${mapView.y}px`;
+  map.style.backgroundSize = `${18 * mapView.z}px ${18 * mapView.z}px`;
+  const pct = document.getElementById("zoom-pct"); if (pct) pct.textContent = Math.round(mapView.z * 100) + "%";
+}
+function freeArea() { // horizontal space not covered by the side panels
+  const map = document.getElementById("canvas"), W = map.clientWidth;
+  const st = document.getElementById("fp-steps"), ins = document.getElementById("fp-insp");
+  let L = 0, R = W;
+  if (st && st.offsetLeft < W / 2) L = st.offsetLeft + st.offsetWidth;
+  if (ins && ins.offsetLeft > W / 2) R = ins.offsetLeft;
+  let top = 16;
+  if (R - L < 360) { L = 0; R = W; top = 104; } // narrow: panels sit above the flow instead of beside it
+  return { L, R, H: map.clientHeight, top };
+}
+function fitView(animate, minZ = 0.4) {
+  const flow = document.getElementById("flow"); if (!flow) return;
+  const { L, R, H, top } = freeArea();
+  const w = flow.offsetWidth, h = flow.offsetHeight;
+  mapView.z = Math.max(minZ, Math.min(1, (H - top - 74) / h, (R - L - 40) / w));
+  mapView.x = L + (R - L - w * mapView.z) / 2;
+  mapView.y = Math.max(top, (H - 50 - h * mapView.z) / 2);
+  applyView(animate);
+}
+function zoomAt(k, px, py) {
+  const z = Math.max(0.3, Math.min(2, mapView.z * k)); k = z / mapView.z;
+  mapView.x = px - (px - mapView.x) * k; mapView.y = py - (py - mapView.y) * k; mapView.z = z;
+  applyView();
+}
+function ensureVisible(el) {
+  const map = document.getElementById("canvas").getBoundingClientRect(), r = el.getBoundingClientRect();
+  if (r.bottom > map.bottom - 70) mapView.y -= r.bottom - (map.bottom - 70);
+  else if (r.top < map.top + 20) mapView.y += (map.top + 20) - r.top;
+  else return;
+  applyView(true);
+}
+function placePanels() {
+  const map = document.getElementById("canvas"), W = map.clientWidth, H = map.clientHeight;
+  for (const id of ["steps", "insp", "legend"]) {
+    const el = document.getElementById("fp-" + id), p = panels[id];
+    if (p.x == null) p.x = W - el.offsetWidth - 12; // inspector top-right, legend bottom-right
+    if (p.y == null) p.y = H - el.offsetHeight - 12;
+    p.x = Math.max(0, Math.min(W - 60, p.x)); p.y = Math.max(0, Math.min(H - 36, p.y));
+    el.style.left = p.x + "px"; el.style.top = p.y + "px";
+  }
+}
+function initMap() {
+  const map = document.getElementById("canvas"); if (!map) return;
+  if (map.clientWidth < 760 && !panels._mobileInit) { panels.steps.c = panels.insp.c = true; panels.insp.y = 56; panels._mobileInit = true; return renderWorkflows(); }
+  map.querySelector("#fp-steps").classList.toggle("collapsed", panels.steps.c);
+  map.querySelector("#fp-insp").classList.toggle("collapsed", panels.insp.c);
+  placePanels();
+  if (mapView.x == null) fitView(false, 0.8); else applyView(); // first view: readable zoom, top-aligned; the fit button fits everything
+
+  // pan on background
+  let pan = null;
+  map.addEventListener("pointerdown", e => {
+    if (e.button !== 0 || e.target.closest(".node, .fp, .map-ctrls, .plus, #add-menu, button, input, select")) return;
+    pan = { sx: e.clientX, sy: e.clientY, x: mapView.x, y: mapView.y, moved: false };
+    map.setPointerCapture(e.pointerId); map.classList.add("panning");
+  });
+  map.addEventListener("pointermove", e => {
+    if (!pan) return;
+    const dx = e.clientX - pan.sx, dy = e.clientY - pan.sy;
+    if (Math.abs(dx) + Math.abs(dy) > 3) pan.moved = true;
+    mapView.x = pan.x + dx; mapView.y = pan.y + dy; applyView();
+  });
+  const endPan = () => { if (!pan) return; justPanned = pan.moved; pan = null; map.classList.remove("panning"); };
+  map.addEventListener("pointerup", endPan); map.addEventListener("pointercancel", endPan);
+
+  // zoom on wheel (around cursor), but let panels scroll normally
+  map.addEventListener("wheel", e => {
+    if (e.target.closest(".fp, #add-menu")) return;
+    e.preventDefault();
+    const r = map.getBoundingClientRect();
+    zoomAt(Math.exp(-e.deltaY * 0.0015), e.clientX - r.left, e.clientY - r.top);
+  }, { passive: false });
+
+  // drag floating panels by their header
+  map.querySelectorAll(".fp-h").forEach(h => {
+    const el = h.parentElement, p = panels[el.dataset.panel];
+    let d = null;
+    h.addEventListener("pointerdown", e => {
+      if (e.target.closest("button")) return;
+      d = { sx: e.clientX, sy: e.clientY, x: p.x, y: p.y }; h.setPointerCapture(e.pointerId); el.classList.add("moving");
+    });
+    h.addEventListener("pointermove", e => {
+      if (!d) return;
+      p.x = Math.max(0, Math.min(map.clientWidth - 60, d.x + e.clientX - d.sx));
+      p.y = Math.max(0, Math.min(map.clientHeight - 36, d.y + e.clientY - d.sy));
+      el.style.left = p.x + "px"; el.style.top = p.y + "px";
+    });
+    const up = () => { d = null; el.classList.remove("moving"); };
+    h.addEventListener("pointerup", up); h.addEventListener("pointercancel", up);
+  });
+}
+
+function paletteHTML(q) {
+  q = q.toLowerCase();
+  return STEP_GROUPS.map(g => {
+    const items = Object.entries(STEP_CATALOG).filter(([k, d]) => d.group === g && (!q || d.label.toLowerCase().includes(q)));
+    if (!items.length) return "";
+    return `<div class="grp">${g}</div>` + items.map(([k, d]) => `<div class="pal-item" draggable="true" data-new="${k}" title="${esc(d.desc)}">${kindIc(d.kind)}<span>${esc(d.label)}</span><button class="btn ghost icon sm add" data-add="${k}" title="Add">${ic("plus")}</button></div>`).join("");
+  }).join("");
+}
+
+function inspectorStep(st, wf) {
+  const d = STEP_CATALOG[st.type];
+  const idx = wf.steps.indexOf(st);
+  const field = f => {
+    const v = st.config[f.k];
+    if (f.t === "toggle") return `<div class="switch-row">${f.l}<label class="switch"><input type="checkbox" data-cfg="${f.k}" ${v ? "checked" : ""}><span class="track"></span></label></div>`;
+    if (f.t === "select") return `<label class="field">${f.l}<select class="input" data-cfg="${f.k}">${f.o.map(o => `<option ${o === v ? "selected" : ""}>${o}</option>`).join("")}</select></label>`;
+    return `<label class="field">${f.l}<input class="input" data-cfg="${f.k}" value="${esc(v ?? "")}"></label>`;
+  };
+  return `<div class="card">
+    <div class="card-h"><div style="display:flex;gap:10px;align-items:center">${kindIc(d.kind)}<div><h3>${esc(d.label)}</h3><div class="card-desc" style="margin-top:2px">Step ${idx + 1} of ${wf.steps.length} · ${KIND_LABEL[d.kind]}${d.skill ? " · " + d.skill + " skill" : ""}</div></div></div>
+      <button class="btn ghost icon sm" data-desel title="Close">✕</button></div>
+    <div class="card-b fields">
+      <div class="text-muted" style="font-size:13.5px">${esc(d.desc)}</div>
+      ${(d.fields || []).map(field).join("") || '<div class="text-muted" style="font-size:13px">No settings for this step.</div>'}
+      <div class="actions" style="justify-content:space-between">
+        <div class="actions"><button class="btn sm icon" data-move="-1" ${idx === 0 ? "disabled" : ""} title="Move up">${ic("up")}</button><button class="btn sm icon" data-move="1" ${idx === wf.steps.length - 1 ? "disabled" : ""} title="Move down">${ic("down")}</button></div>
+        <button class="btn sm destructive" data-del="${st.uid}">${ic("trash")} Remove</button>
+      </div>
+    </div></div>`;
+}
+function inspectorWorkflow(wf) {
+  return `<div class="card">
+    <div class="card-h"><div><h3>Workflow settings</h3><div class="card-desc">Select a step on the canvas to configure it</div></div></div>
+    <div class="card-b fields">
+      <label class="field">Name<input class="input" data-wfcfg="name" value="${esc(wf.name)}"></label>
+      <label class="field">Mode<select class="input" data-wfcfg="mode">${["Live", "Dry-run (suggest only)"].map(o => `<option ${wf.mode.startsWith(o.slice(0, 4)) ? "selected" : ""}>${o}</option>`).join("")}</select></label>
+      <div class="switch-row">Active<label class="switch"><input type="checkbox" data-wfcfg="active" ${wf.active ? "checked" : ""}><span class="track"></span></label></div>
+      <dl class="kv" style="font-size:13px"><dt>Version</dt><dd>v${wf.version}</dd><dt>Steps</dt><dd>${wf.steps.length}</dd><dt>Saved</dt><dd>${ago(wf.updated_at)}</dd></dl>
+    </div></div>`;
+}
+
+function mutate(fn) { saveWorkflows(ws => fn(ws.find(w => w.id === wfId))); renderWorkflows(); }
+function insertAt(type, at) {
+  const st = mkStep(type);
+  mutate(wf => wf.steps.splice(at, 0, st));
+  selUid = st.uid; renderWorkflows();
+  toast(`Added “${STEP_CATALOG[type].label}”`);
+}
+function moveTo(uid, at) {
+  mutate(wf => {
+    const from = wf.steps.findIndex(s => s.uid === uid);
+    if (from < 0) return;
+    const [st] = wf.steps.splice(from, 1);
+    wf.steps.splice(from < at ? at - 1 : at, 0, st);
+  });
+}
+
+async function simulate() {
+  if (simulating) return; simulating = true;
+  const wf = getWorkflow(wfId);
+  selUid = null; renderWorkflows();
+  document.getElementById("wf-sim").innerHTML = ic("stop") + " Running…";
+  for (const st of wf.steps) {
+    const el = document.querySelector(`.node[data-uid="${st.uid}"]`); if (!el) break;
+    ensureVisible(el);
+    el.classList.add(st.type === "approval" ? "waiting" : "running");
+    if (st.type === "approval") el.querySelector(".sum").textContent = "Waiting for " + st.config.approvers + "…";
+    await sleep(st.type === "approval" ? 1400 : 700);
+    if (st.type === "approval") el.querySelector(".sum").textContent = "Approved by @priya (simulated)";
+    el.classList.remove("running", "waiting"); el.classList.add("done");
+  }
+  const btn = document.getElementById("wf-sim"); if (btn) btn.innerHTML = ic("play") + " Simulate run";
+  toast(`Simulation finished — ${wf.steps.length} steps`);
+  simulating = false;
+}
+
+// builder events (delegated on #view so they survive re-renders)
+const view = document.getElementById("view");
+let dragData = null;
+view.addEventListener("dragstart", e => {
+  const n = e.target.closest?.(".node"), p = e.target.closest?.(".pal-item");
+  if (!n && !p) return;
+  dragData = n ? { move: n.dataset.uid } : { add: p.dataset.new };
+  e.dataTransfer.setData("text/plain", JSON.stringify(dragData));
+  e.dataTransfer.effectAllowed = n ? "move" : "copy";
+  if (n) n.classList.add("ghost");
+  requestAnimationFrame(() => document.getElementById("canvas")?.classList.add("dragging"));
+});
+view.addEventListener("dragend", () => { dragData = null; document.getElementById("canvas")?.classList.remove("dragging"); document.querySelectorAll(".ghost,.dz.over").forEach(x => x.classList.remove("ghost", "over")); });
+view.addEventListener("dragover", e => {
+  const z = e.target.closest?.(".dz"); if (!z || !dragData) return;
+  e.preventDefault();
+  document.querySelectorAll(".dz.over").forEach(x => x !== z && x.classList.remove("over"));
+  z.classList.add("over");
+});
+view.addEventListener("drop", e => {
+  const z = e.target.closest?.(".dz"); if (!z || !dragData) return;
+  e.preventDefault();
+  const at = +z.dataset.at, d = dragData; dragData = null;
+  if (d.add) insertAt(d.add, at); else moveTo(d.move, at);
+});
+
+let addMenuAt = null;
+function openAddMenu(anchor, at) {
+  closeAddMenu();
+  addMenuAt = at;
+  const m = document.createElement("div"); m.className = "add-menu"; m.id = "add-menu";
+  m.innerHTML = STEP_GROUPS.map(g => `<div class="grp">${g}</div>` + Object.entries(STEP_CATALOG).filter(([, d]) => d.group === g).map(([k, d]) => `<button data-menu-add="${k}">${kindIc(d.kind)}${esc(d.label)}</button>`).join("")).join("");
+  const canvas = document.getElementById("canvas"), r = anchor.getBoundingClientRect(), cr = canvas.getBoundingClientRect();
+  m.style.left = Math.max(8, Math.min(r.left - cr.left + 28, cr.width - 248)) + "px";
+  m.style.top = (r.top - cr.top) + "px";
+  canvas.appendChild(m);
+}
+function closeAddMenu() { document.getElementById("add-menu")?.remove(); }
+
+view.addEventListener("click", e => {
+  const t = e.target;
+  if (justPanned) { justPanned = false; if (t.closest("#canvas") && !t.closest(".fp, .map-ctrls")) return; }
+  const zm = t.closest("[data-zoom]");
+  if (zm) { const m = document.getElementById("canvas"); if (zm.dataset.zoom === "fit") fitView(true); else zoomAt(zm.dataset.zoom === "in" ? 1.2 : 1 / 1.2, m.clientWidth / 2, m.clientHeight / 2); return; }
+  const col = t.closest("[data-collapse]"); if (col) { const id = col.dataset.collapse; panels[id].c = !panels[id].c; renderWorkflows(); return; }
+  // --- workflow builder ---
+  const menuAdd = t.closest("[data-menu-add]"); if (menuAdd) { const at = addMenuAt; closeAddMenu(); insertAt(menuAdd.dataset.menuAdd, at); return; }
+  if (!t.closest("#add-menu")) closeAddMenu();
+  const plus = t.closest("[data-plus]"); if (plus) { openAddMenu(plus, +plus.dataset.plus); return; }
+  const tab = t.closest("[data-wf]"); if (tab) { wfId = tab.dataset.wf; selUid = null; mapView.x = null; renderWorkflows(); return; }
+  const pr = t.closest("[data-preset]");
+  if (pr) {
+    applyPreset(wfId, pr.dataset.preset); selUid = null; renderWorkflows();
+    const after = stepsAfterApproval(getWorkflow(wfId));
+    after.forEach(s => document.querySelector(`.node[data-uid="${s.uid}"]`)?.classList.add("highlight"));
+    setTimeout(() => document.querySelectorAll(".node.highlight").forEach(n => n.classList.remove("highlight")), 1200);
+    toast(`After approval: ${DELIVERY_PRESETS[pr.dataset.preset].label}`);
+    return;
+  }
+  const add = t.closest("[data-add]");
+  if (add) { const wf = getWorkflow(wfId); const i = selUid ? wf.steps.findIndex(s => s.uid === selUid) + 1 : wf.steps.length; insertAt(add.dataset.add, i); return; }
+  const del = t.closest("[data-del]");
+  if (del) { const uid = del.dataset.del; const label = STEP_CATALOG[getWorkflow(wfId).steps.find(s => s.uid === uid).type].label; if (selUid === uid) selUid = null; mutate(wf => { wf.steps = wf.steps.filter(s => s.uid !== uid); }); toast(`Removed “${label}”`); return; }
+  const mv = t.closest("[data-move]");
+  if (mv) { const dir = +mv.dataset.move; mutate(wf => { const i = wf.steps.findIndex(s => s.uid === selUid); const [s] = wf.steps.splice(i, 1); wf.steps.splice(i + dir, 0, s); }); return; }
+  if (t.closest("[data-desel]")) { selUid = null; renderWorkflows(); return; }
+  const node = t.closest(".node"); if (node && !simulating) { selUid = node.dataset.uid; renderWorkflows(); return; }
+  if (t.closest("#wf-sim")) { simulate(); return; }
+  if (t.closest("#wf-reset")) { resetWorkflow(wfId).then(() => { selUid = null; mapView.x = null; renderWorkflows(); toast("Workflow reset to default"); }); return; }
+  if (t.closest("#wf-publish")) { mutate(wf => { wf.version++; }); toast(`Published “${getWorkflow(wfId).name}” v${getWorkflow(wfId).version} — live in Slack, Teams & DevRev`); return; }
+  if (t.closest("#canvas") && !t.closest(".node, .fp, .map-ctrls, #add-menu") && selUid) { selUid = null; renderWorkflows(); return; }
+
+  // --- other pages ---
+  const ts = t.closest("[data-toast]"); if (ts && !ts.closest("#log")) { toast(ts.dataset.toast); return; }
+  const g = t.closest("[data-goto]"); if (g) { location.hash = g.dataset.goto; return; }
+  const ic1 = t.closest("[data-int-config]"); if (ic1) { openIntegrationModal(ic1.dataset.intConfig); return; }
+  const it1 = t.closest("[data-int-test]"); if (it1) { testIntegration(it1.dataset.intTest, it1); return; }
+  const id1 = t.closest("[data-int-disconnect]");
+  if (id1) { api("DELETE", `/api/integrations/${id1.dataset.intDisconnect}`).then(() => { toast("Disconnected — saved credentials deleted"); route(true); }); return; }
+  const dec = t.closest("[data-decide]"); if (dec) { const [id, d] = dec.dataset.decide.split(":"); decideApproval(id, d, dec); return; }
+  const rr = t.closest("[data-run-row]");
+  if (rr) { const id = rr.dataset.runRow, row = view.querySelector(`[data-run-detail="${id}"]`); row.hidden = !row.hidden; row.hidden ? OPEN_RUNS.delete(id) : OPEN_RUNS.add(id); return; }
+  const ud = t.closest("[data-user-del]"); if (ud) { api("DELETE", `/api/users/${ud.dataset.userDel}`).then(() => route(true)); return; }
+  if (t.closest("#user-add")) {
+    const v = (id) => document.getElementById(id).value.trim();
+    api("POST", "/api/users", { name: v("nu-name"), email: v("nu-email"), role: v("nu-role"), slack_user_id: v("nu-slack") || null })
+      .then(() => { toast("User added"); route(true); }).catch(e => toast(e.message));
+    return;
+  }
+  if (t.closest("#settings-save")) {
+    const v = (id) => document.getElementById(id).value;
+    api("PUT", "/api/settings", { agent_name: v("s-name"), handle: v("s-handle"), step_delay: [+v("s-dmin"), +v("s-dmax")] })
+      .then(() => toast("Settings saved")).catch(e => toast(e.message));
+    return;
+  }
+  if (t.closest("#console-new")) { newConversation(); return; }
+  if (t.closest("#reply-add")) {
+    api("POST", "/api/replies", { pattern: document.getElementById("nr-pattern").value, match_type: document.getElementById("nr-type").value, response: document.getElementById("nr-response").value })
+      .then(() => { toast("Reply added — live in Slack now"); route(true); }).catch(e => toast(e.message));
+    return;
+  }
+  const rd = t.closest("[data-reply-del]"); if (rd) { api("DELETE", `/api/replies/${rd.dataset.replyDel}`).then(() => route(true)); return; }
+  if (t.closest("#try-btn")) { tryReply(); return; }
+});
+view.addEventListener("keydown", e => { const pr = e.target.closest?.("[data-preset]"); if (pr && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); pr.click(); } });
+view.addEventListener("input", e => {
+  if (e.target.id === "pal-q") { document.getElementById("pal-list").innerHTML = paletteHTML(e.target.value); }
+});
+view.addEventListener("change", e => {
+  const c = e.target.closest("[data-cfg]");
+  if (c) { const k = c.dataset.cfg, v = c.type === "checkbox" ? c.checked : c.value; mutate(wf => { wf.steps.find(s => s.uid === selUid).config[k] = v; }); return; }
+  const w = e.target.closest("[data-wfcfg]");
+  if (w) { const k = w.dataset.wfcfg, v = w.type === "checkbox" ? w.checked : w.value; mutate(wf => { wf[k] = v; }); return; }
+  const t = e.target.closest("[data-toast-change]"); if (t) toast(t.dataset.toastChange);
+});
+
+// settings-style controls that save on change
+view.addEventListener("change", e => {
+  const t = e.target;
+  if (t.dataset.replyEnabled) { api("PATCH", `/api/replies/${t.dataset.replyEnabled}`, { enabled: t.checked }).then(() => toast(t.checked ? "Reply on" : "Reply off")); return; }
+  if (t.dataset.replyType) { api("PATCH", `/api/replies/${t.dataset.replyType}`, { match_type: t.value }).then(() => toast("Saved")).catch(e => toast(e.message)); return; }
+  if (t.dataset.replyPattern) { api("PATCH", `/api/replies/${t.dataset.replyPattern}`, { pattern: t.value }).then(() => toast("Saved")).catch(e => toast(e.message)); return; }
+  if (t.dataset.replyResponse) { api("PATCH", `/api/replies/${t.dataset.replyResponse}`, { response: t.value }).then(() => toast("Saved")).catch(e => toast(e.message)); return; }
+  if (t.dataset.skillEnabled) { api("PATCH", `/api/skills/${t.dataset.skillEnabled}`, { enabled: t.checked }).then(s => toast(`${s.name} ${s.enabled ? "enabled" : "disabled"}`)); return; }
+  if (t.dataset.skillAutonomy) { api("PATCH", `/api/skills/${t.dataset.skillAutonomy}`, { autonomy: t.value }).then(s => toast(`${s.name}: autonomy updated`)); return; }
+  if (t.dataset.policy) { api("PATCH", `/api/policies/${t.dataset.policy}`, { enabled: t.checked }).then(p => toast(`Policy ${p.code} ${p.enabled ? "on" : "off"}`)); return; }
+  if (t.dataset.userRole) { api("PATCH", `/api/users/${t.dataset.userRole}`, { role: t.value }).then(() => { toast("Role updated"); route(true); }); return; }
+  if (t.dataset.userSlack !== undefined) { api("PATCH", `/api/users/${t.dataset.userSlack}`, { slack_user_id: t.value }).then(() => toast("Slack ID saved")).catch(err => toast(err.message)); }
+});
+
+async function tryReply() {
+  const text = document.getElementById("try-text").value.trim(), out = document.getElementById("try-out");
+  if (!text) return;
+  const r = await api("POST", "/api/replies/try", { text });
+  out.innerHTML = r.source === "custom"
+    ? `<div class="result ok"><b>Custom reply #${r.reply_id}:</b><div class="md" style="color:var(--foreground);margin-top:4px">${md(r.text)}</div></div>`
+    : `<div class="result" style="background:var(--muted)">No custom reply matches — the built-in <b>${esc(r.intent)}</b> behaviour answers this.</div>`;
+}
+view.addEventListener("keydown", e => { if (e.target.id === "try-text" && e.key === "Enter") tryReply(); });
+
+// ---------- model ----------
+let MODEL = null;
+async function saveModel(patch) {
+  const c = { ...MODEL.config, ...patch };
+  try { MODEL = await api("PUT", "/api/model", c); toast("Model settings saved"); }
+  catch (e) { toast(e.message); }
+  route(true);
+}
+async function testModel(skill, btn) {
+  const out = document.getElementById("model-test-out");
+  btn.disabled = true; const label = btn.innerHTML; btn.textContent = "Testing…";
+  out.innerHTML = `<div class="result" style="background:var(--muted)">Calling the model…</div>`;
+  try {
+    const r = await api("POST", "/api/model/test", { skill: skill || null });
+    out.innerHTML = r.ok
+      ? `<div class="result ok">✓ <b>${esc(r.label)}</b> answered “${esc(r.text)}” · ${r.latency_ms} ms · ${r.input_tokens} in / ${r.output_tokens} out tokens · <code>${esc(r.model)}</code></div>`
+      : `<div class="result err">✕ ${esc(r.error)}</div>`;
+  } catch (e) { out.innerHTML = `<div class="result err">✕ ${esc(e.message)}</div>`; }
+  btn.disabled = false; btn.innerHTML = label;
+  out.scrollIntoView({ block: "nearest" });
+}
+view.addEventListener("click", e => {
+  const t = e.target;
+  const bm = t.closest("[data-brain-mode]");
+  if (bm) {
+    api("PUT", "/api/settings", { brain_mode: bm.dataset.brainMode }).then(() => {
+      BRAIN_MODE = bm.dataset.brainMode;
+      toast(BRAIN_MODE === "llm" ? "Brain mode: LLM agent — Slack and the console now use the model" : "Brain mode: scripted demo");
+      route(true);
+    }).catch(e => toast(e.message));
+    return;
+  }
+  const pv = t.closest("[data-model-provider]");
+  if (pv) {
+    const to = pv.dataset.modelProvider, fam = (k) => MODEL.providers[k].family;
+    if (fam(to) === fam(MODEL.config.provider)) { saveModel({ provider: to }); return; }
+    saveModel(fam(to) === "openai" ? { provider: to, model: "custom", custom_model: "", skills: {} } : { provider: to, model: "claude-opus-5", effort: "high", skills: {} });
+    return;
+  }
+  if (t.closest("#m-openai-refresh")) { api("POST", "/api/model/openai-models/refresh").then(r => { toast(r.error || `${r.models.length} models loaded`); route(true); }); return; }
+  const pk = t.closest("[data-model-pick]");
+  if (pk) {
+    const m = MODEL.models.find(x => x.id === pk.dataset.modelPick);
+    saveModel({ model: pk.dataset.modelPick, ...(m && m.default_effort ? { effort: m.default_effort } : {}) });
+    return;
+  }
+  if (t.closest("#model-test")) { testModel(null, t.closest("#model-test")); return; }
+  const ts = t.closest("[data-model-test-skill]"); if (ts) { testModel(ts.dataset.modelTestSkill, ts); return; }
+});
+view.addEventListener("change", e => {
+  const t = e.target;
+  if (t.id === "m-custom") saveModel({ custom_model: t.value });
+  else if (t.id === "m-openai") saveModel({ model: t.value });
+  else if (t.id === "m-transport") saveModel({ bedrock_transport: t.value });
+  else if (t.id === "m-region") saveModel({ region: t.value.trim() || "us-east-1" });
+  else if (t.id === "m-effort") saveModel({ effort: t.value });
+  else if (t.id === "m-max") saveModel({ max_tokens: Math.max(256, Math.min(128000, +t.value || 16000)) });
+  else if (t.dataset.skillModel !== undefined || t.dataset.skillEffort !== undefined) {
+    const key = t.dataset.skillModel ?? t.dataset.skillEffort, skills = { ...(MODEL.config.skills || {}) };
+    const cur = { model: "", effort: "", ...(skills[key] || {}) };
+    if (t.dataset.skillModel !== undefined) cur.model = t.value; else cur.effort = t.value;
+    skills[key] = cur;
+    saveModel({ skills });
+  }
+});
+
+// ---------- console (talks to the same brain as Slack) ----------
+let CONSOLE_EL = null;
+let THREAD = null;
+try { THREAD = sessionStorage.getItem("sk-thread"); } catch (e) {}
+if (!THREAD) newThreadId();
+function newThreadId() { THREAD = "c-" + Math.random().toString(36).slice(2, 10); try { sessionStorage.setItem("sk-thread", THREAD); } catch (e) {} }
+
+function buildConsole() {
+  const el = document.createElement("div");
+  el.className = "card console";
+  el.innerHTML = `
+    <div class="log" id="log" data-scroll>
+      <div class="empty" id="empty"><b>What do you want to know or get done?</b><span>Sidekick remembers where this conversation is — try the spike, then “fix it”, then approve.</span></div>
+    </div>
+    <div class="bottom">
+      <div class="chips" id="ask-chips">${SUGGESTED.map(p => `<button class="chip" data-fill="${esc(p.text)}">${esc(p.label)}</button>`).join("")}</div>
+      <div class="row"><input class="input" id="ask-input" placeholder="e.g. There was a spike at 7:00 AM this morning — what's the reason?"><button class="btn primary" id="ask-send">Send</button></div>
+    </div>`;
+  const log = el.querySelector("#log"), inp = el.querySelector("#ask-input");
+  const submit = () => { const v = inp.value.trim(); if (!v) return; inp.value = ""; consoleSend(v); };
+  el.querySelector("#ask-send").onclick = submit;
+  inp.addEventListener("keydown", e => { if (e.key === "Enter") submit(); });
+  el.querySelector("#ask-chips").addEventListener("click", e => { const b = e.target.closest("[data-fill]"); if (b) { inp.value = b.dataset.fill; inp.focus(); } });
+  log.addEventListener("click", e => {
+    const b = e.target.closest("[data-act]"); if (!b) return;
+    const a = JSON.parse(b.dataset.act);
+    b.closest(".actions").querySelectorAll("button").forEach(x => (x.disabled = true));
+    consoleSend(a.id === "say" ? a.value : null, a.id === "say" ? null : a);
+  });
+  return el;
+}
+function bubble(cls, html) {
+  const log = CONSOLE_EL.querySelector("#log");
+  CONSOLE_EL.querySelector("#empty")?.remove();
+  const d = document.createElement("div"); d.className = cls; d.innerHTML = html; log.appendChild(d); log.scrollTop = log.scrollHeight;
+  return d;
+}
+async function consoleSend(text, action) {
+  if (text) bubble("q", esc(text));
+  else if (action) bubble("q", esc(action.label));
+  const a = bubble("a", `<div class="av">S</div><div class="host"><div class="typing"><i></i><i></i><i></i></div></div>`);
+  const host = a.querySelector(".host");
+  try {
+    const base = { source: "dashboard", channel: "console", thread_ts: THREAD, actor: ACTOR() };
+    const res = action ? await api("POST", "/api/agent/action", { ...base, action: action.id, value: action.value || "" })
+                       : await api("POST", "/api/agent/message", { ...base, text });
+    host.innerHTML = res.reply?.text ? `<div class="agent-body"><div class="md">${md(res.reply.text)}</div>${actionsHTML(res.reply.actions)}</div>` : "";
+    if (res.run_id) await followRun(host, res.run_id);
+  } catch (e) { host.innerHTML = `<div class="result err">⚠️ ${esc(e.message)}</div>`; }
+  updateConvStatus(); refreshSummary();
+}
+async function followRun(host, runId) {
+  const box = document.createElement("div"); host.appendChild(box);
+  const log = CONSOLE_EL.querySelector("#log");
+  for (;;) {
+    let r;
+    try { r = await GET(`/api/runs/${runId}`); } catch (e) { await sleep(1500); continue; }
+    box.innerHTML = `<div class="agent-meta"><span class="skill-tag">${SKILL_NAMES[r.skill] || r.skill}</span> <span class="muted" style="font-size:12px">${esc(r.title)} · ${r.steps.length} tool calls${r.model ? " · " + esc(r.model) : ""}</span></div>
+      <div class="agent-steps">${r.steps.map(stepHTML).join("")}</div>
+      ${r.status !== "running" && r.result ? `<div class="agent-body"><div class="md">${md(r.result.text)}</div>${actionsHTML(r.result.actions)}</div>` : ""}`;
+    log.scrollTop = log.scrollHeight;
+    if (r.status !== "running") return;
+    await sleep(1000);
+  }
+}
+async function updateConvStatus() {
+  const el = document.getElementById("conv-status"); if (!el) return;
+  try {
+    const c = await GET(`/api/conversation?source=dashboard&channel=console&thread_ts=${encodeURIComponent(THREAD)}`);
+    el.textContent = "Status: " + c.status.replace(/_/g, " ");
+  } catch (e) { el.textContent = ""; }
+}
+function newConversation() {
+  newThreadId();
+  CONSOLE_EL = buildConsole();
+  route(true);
+  toast("New conversation started");
+}
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ---------- router ----------
+let PAGE_TIMER = null;
+async function route(keepScroll) {
+  const v = (location.hash || "#ask").slice(1);
+  const key = views[v] ? v : "ask";
+  clearInterval(PAGE_TIMER); PAGE_TIMER = null;
+  document.querySelectorAll("#nav [data-v]").forEach(a => a.classList.toggle("on", a.dataset.v === key));
+  document.getElementById("crumb").textContent = TITLES[key];
+  const y = window.scrollY;
+  try { view.innerHTML = await views[key](); }
+  catch (e) { view.innerHTML = `<div class="card"><div class="card-b"><div class="result err">Couldn't reach the Sidekick API: ${esc(e.message)}</div></div></div>`; return; }
+  if (key === "ask") {
+    if (!CONSOLE_EL) CONSOLE_EL = buildConsole();
+    document.getElementById("console-slot").replaceWith(CONSOLE_EL);
+    updateConvStatus();
+    CONSOLE_EL.querySelector("#ask-input").focus();
+  }
+  if (key === "workflows") renderWorkflows();
+  if (key === "runs") PAGE_TIMER = setInterval(() => { if (!document.querySelector("#int-modal")) route(true); }, 4000);
+  if (keepScroll) window.scrollTo(0, y);
+}
+window.addEventListener("hashchange", () => { route(); window.scrollTo(0, 0); });
+route();
+</script>
+</body>
+</html>
