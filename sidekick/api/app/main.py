@@ -11,7 +11,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import brain, db, integrations, models
+from . import brain, db, integrations, models, previews
 from .catalog import POLICIES, SETTINGS, SKILLS, default_workflows
 
 OWNER_EMAIL = os.getenv("SIDEKICK_OWNER_EMAIL", "owner@example.com")
@@ -459,6 +459,44 @@ def decide(aid: int, body: DecisionIn):
         text = (res.get("reply") or {}).get("text") or ("✅ Approved from the dashboard" if body.decision == "approve" else "❌ Rejected from the dashboard")
         db.run("INSERT INTO outbox (channel, thread_ts, text, run_id) VALUES (%s, %s, %s, %s)", (conv["channel"], conv["thread_ts"], text, res.get("run_id")))
     return res
+
+
+# ---------- LKE PR previews + kill switch (see previews.py / deploy/gate.sh) ----------
+def _preview_audit(title, detail):
+    db.run("""INSERT INTO runs (intent, skill, title, status, source, requested_by, steps, result, finished_at, model)
+              VALUES ('previews', 'infra', %s, 'done', 'dashboard', %s, %s, %s, now(), 'LKE via deploy gate (no model)')""",
+           (title, f"{OWNER_NAME} (dashboard)", db.J([{"tool": "lke.kpreview", "detail": detail, "status": "done", "integration": "akamai", "connected": True}]),
+            db.J({"text": title, "actions": []})))
+
+
+@app.get("/api/previews")
+def get_previews():
+    if not previews.configured():
+        return {"configured": False, "previews": [], "limit": 5}
+    try:
+        return {"configured": True, "previews": previews.list_previews(), "limit": int(os.getenv("MAX_K8S_PREVIEWS", "5"))}
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(502, f"Couldn't reach the cluster through the deploy gate: {e}")
+
+
+@app.delete("/api/previews/{pr}")
+def delete_preview(pr: int):
+    try:
+        previews.delete(pr)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(502, str(e))
+    _preview_audit(f"Deleted LKE preview pr-{pr}", f"kpreview down {pr}")
+    return {"deleted": [pr]}
+
+
+@app.delete("/api/previews")
+def delete_all_previews():
+    try:
+        n = previews.delete_all()
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(502, str(e))
+    _preview_audit(f"Kill switch: deleted all {n} LKE preview(s)", "kpreview down-all")
+    return {"deleted": n}
 
 
 # ---------- DevRev Computer MCP connector (audit trail) ----------
