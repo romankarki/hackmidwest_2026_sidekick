@@ -114,7 +114,16 @@ Example: `@sidekick rename the page title in web/public/index.html to "ShopLite 
    - open a PR whose body contains the diff and who requested and approved it.
 
    The run's model column shows *GitHub API (no model)*, and Slack gets a **View PR** button.
-4. **Reject.** Nothing is created on GitHub. If a GitHub call fails, the approval goes back to pending, so you can fix the cause and approve again.
+4. **Hand-off issue.** Right after the PR, Sidekick files a GitHub issue for a developer (labels `sidekick` and `needs-review`, assigned via Integrations → GitHub → *Review issue assignee*). It contains:
+   - the PR and live preview links;
+   - what changed and why;
+   - the agent's **assumptions**;
+   - a review checklist;
+   - suggested **follow-ups**;
+   - the diff.
+
+   The PR says `Closes #<issue>`, so merging closes it.
+5. **Reject.** Nothing is created on GitHub. If a GitHub call fails, the approval goes back to pending, so you can fix the cause and approve again.
 
 This needs **Integrations → GitHub**:
 - a token with Contents and Pull requests read/write on the repo;
