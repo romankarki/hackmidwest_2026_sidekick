@@ -46,7 +46,7 @@ shop.$HOST {
 	reverse_proxy 127.0.0.1:8080
 }
 sidekick.$HOST {
-	basic_auth {
+	basicauth {
 		admin $HASH
 	}
 	reverse_proxy 127.0.0.1:8090
