@@ -30,6 +30,7 @@ services:
       SIDEKICK_SECRET_KEY: ${SIDEKICK_SECRET_KEY:?set SIDEKICK_SECRET_KEY in sidekick/.env}
       SIDEKICK_OWNER_NAME: ${SIDEKICK_OWNER_NAME:-Owner}
       SIDEKICK_OWNER_EMAIL: ${SIDEKICK_OWNER_EMAIL:-owner@example.com}
+      SIDEKICK_PUBLIC_URL: ${SIDEKICK_PUBLIC_URL:-http://localhost:8090}   # links in replies; set on the server
     volumes:
       - ./dashboard:/srv/dashboard:ro      # edit the dashboard without rebuilding
     ports:
@@ -55,7 +56,7 @@ services:
     build: ../devrev-mcp
     environment:
       SIDEKICK_API_URL: http://api:8000
-      SIDEKICK_DASHBOARD_URL: http://localhost:${DASHBOARD_PORT:-8090}
+      SIDEKICK_DASHBOARD_URL: ${SIDEKICK_PUBLIC_URL:-http://localhost:8090}
       ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:-}
     volumes:
       - ../devrev-mcp/data:/data:ro
