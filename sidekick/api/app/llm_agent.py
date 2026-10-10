@@ -35,6 +35,9 @@ You talk to engineers in Slack, Microsoft Teams, DevRev and a web dashboard.
 
 How to work:
 - Investigate with your tools before concluding. Prefer real data (metrics, headers, deploy history, edge config) over guesses.
+- Production ShopLite runs on Akamai Cloud and ships its metrics to Amazon CloudWatch (namespace ShopLite/Akamai). For
+  production slowness or errors start with `cloudwatch_shoplite_overview` and `cloudwatch_alarms`, then correlate with
+  `github_recent_commits` (what changed when) before proposing a fix.
 - If a tool says an integration isn't connected, say which one and continue with what you can check.
 - Be concise and concrete: lead with the answer, then the evidence (numbers, commit SHAs, header values), then next steps.
 - You can READ infrastructure and code. You cannot change anything yourself. When you have a specific infra fix to
@@ -141,7 +144,7 @@ def cloudwatch_metric(namespace: str, metric_name: str, dimensions: str = "{}", 
     """Get a CloudWatch metric time series (5-minute points) for the last N minutes.
 
     Args:
-        namespace: e.g. AWS/EC2, AWS/RDS, AWS/Kinesis, ContainerInsights
+        namespace: e.g. ShopLite/Akamai (production ShopLite on Akamai Cloud), AWS/EC2, AWS/RDS, ContainerInsights
         metric_name: e.g. CPUUtilization, DatabaseConnections, GetRecords.IteratorAgeMilliseconds
         dimensions: JSON object of dimension name to value, e.g. {"DBInstanceIdentifier": "shop-prod"}
         minutes: How far back to look (max 1440)
@@ -156,6 +159,75 @@ def cloudwatch_metric(namespace: str, metric_name: str, dimensions: str = "{}", 
                                    EndTime=end, Period=300, Statistics=[statistic])
     pts = sorted(res["Datapoints"], key=lambda p: p["Timestamp"])
     return _clip([{"t": p["Timestamp"].strftime("%H:%M"), statistic: round(p[statistic], 2), "unit": p.get("Unit")} for p in pts] or "No datapoints for that metric / dimensions.")
+
+
+CW_NAMESPACE = "ShopLite/Akamai"  # shipped from the Akamai VM by akamai-cloudwatch/shipper.py
+
+
+@tool
+def cloudwatch_shoplite_overview(minutes: int = 60, environment: str = "prod") -> str:
+    """Production health of ShopLite (hosted on Akamai Cloud) from Amazon CloudWatch: requests, 5xx errors, average and p95
+    latency per minute for all traffic, the slowest routes, orders, and the Akamai VM's CPU / memory. Start here when
+    debugging slowness or errors in production.
+
+    Args:
+        minutes: How far back to look (max 1440)
+        environment: ShopLite environment shipped to CloudWatch, normally "prod"
+    """
+    if integrations.get_row("aws")["status"] == "not_configured":
+        return _not_connected("AWS", "aws")
+    cw = integrations._boto("cloudwatch", None)
+    minutes = max(5, min(int(minutes), 1440))
+    end = datetime.now(timezone.utc)
+    start = end - timedelta(minutes=minutes)
+    period = 60 if minutes <= 180 else 300
+
+    def q(qid, name, dims, stat, unit_label):
+        return {"Id": qid, "Label": unit_label, "ReturnData": True, "MetricStat": {
+            "Metric": {"Namespace": CW_NAMESPACE, "MetricName": name, "Dimensions": [{"Name": k, "Value": v} for k, v in dims.items()]},
+            "Period": period, "Stat": stat}}
+    env_all = {"Environment": environment, "Route": "ALL"}
+    res = cw.get_metric_data(StartTime=start, EndTime=end, ScanBy="TimestampAscending", MetricDataQueries=[
+        q("req", "Requests", env_all, "Sum", "requests"), q("err", "Errors5xx", env_all, "Sum", "5xx"),
+        q("avg", "LatencyAvg", env_all, "Average", "avg_ms"), q("p95", "LatencyP95", env_all, "Maximum", "p95_ms"),
+        q("orders", "Orders", {"Environment": environment}, "Sum", "orders"),
+        q("cpu", "HostCPUUtilization", {"Host": "sidekick-prod"}, "Average", "cpu_pct"),
+        q("mem", "HostMemoryUtilization", {"Host": "sidekick-prod"}, "Average", "mem_pct")])
+    series = {r["Label"]: dict(zip((t.strftime("%H:%M") for t in r["Timestamps"]), r["Values"])) for r in res["MetricDataResults"]}
+    times = sorted({t for s in series.values() for t in s})
+    rows = [{"t": t, **{k: round(v[t], 1) for k, v in series.items() if t in v}} for t in times]
+    summary = {k: {"max": round(max(v.values()), 1), "latest": round(v[max(v)], 1)} for k, v in series.items() if v}
+    # slowest routes by p95 over the window
+    routes = [m for m in cw.list_metrics(Namespace=CW_NAMESPACE, MetricName="LatencyP95",
+                                         Dimensions=[{"Name": "Environment", "Value": environment}])["Metrics"]
+              if any(d["Name"] == "Route" and d["Value"] not in ("ALL", "/metrics", "/api/health") for d in m["Dimensions"])][:20]
+    slow = []
+    if routes:
+        rr = cw.get_metric_data(StartTime=start, EndTime=end, MetricDataQueries=[
+            {"Id": f"r{i}", "Label": next(d["Value"] for d in m["Dimensions"] if d["Name"] == "Route"),
+             "MetricStat": {"Metric": m, "Period": minutes * 60, "Stat": "Maximum"}} for i, m in enumerate(routes)])
+        slow = sorted(({"route": r["Label"], "p95_ms_max": round(max(r["Values"]), 1)} for r in rr["MetricDataResults"] if r["Values"]),
+                      key=lambda x: -x["p95_ms_max"])[:5]
+    if not rows:
+        return f"No CloudWatch data in {CW_NAMESPACE} for environment {environment!r} in the last {minutes} min (is akamai-cloudwatch shipping?)."
+    return _clip({"source": f"CloudWatch {CW_NAMESPACE} (shipped from Akamai Cloud)", "window_min": minutes, "period_s": period,
+                  "summary": summary, "slowest_routes_p95": slow, "per_period": rows[-40:]})
+
+
+@tool
+def cloudwatch_alarms(state: str = "") -> str:
+    """List CloudWatch alarms (e.g. the ShopLite latency / 5xx alarms) with their current state and reason.
+
+    Args:
+        state: Optional filter: ALARM, OK or INSUFFICIENT_DATA (empty = all)
+    """
+    if integrations.get_row("aws")["status"] == "not_configured":
+        return _not_connected("AWS", "aws")
+    kw = {"StateValue": state} if state else {}
+    alarms = integrations._boto("cloudwatch", None).describe_alarms(AlarmTypes=["MetricAlarm"], **kw)["MetricAlarms"]
+    return _clip([{"name": a["AlarmName"], "state": a["StateValue"], "since": a["StateUpdatedTimestamp"].strftime("%Y-%m-%d %H:%M UTC"),
+                   "metric": f"{a.get('Namespace')}/{a.get('MetricName')}", "threshold": f"{a.get('ComparisonOperator')} {a.get('Threshold')}",
+                   "reason": a.get("StateReason", "")[:200]} for a in alarms] or "No CloudWatch alarms found.")
 
 
 @tool
@@ -366,11 +438,12 @@ def make_request_approval(conv, actor, flag):
     return request_approval
 
 
-READ_TOOLS = [shoplite_health, shoplite_route_latency, shoplite_catalog_cache_headers, prometheus_query, cloudwatch_metric,
+READ_TOOLS = [shoplite_health, shoplite_route_latency, shoplite_catalog_cache_headers, prometheus_query, cloudwatch_shoplite_overview,
+              cloudwatch_alarms, cloudwatch_metric,
               eks_cluster_status, github_recent_commits, github_commit_diff, github_list_files, github_read_file, github_search_code,
               akamai_list_properties, akamai_property_caching_rules]
 TOOL_INTEGRATION = {"shoplite_health": "shoplite", "shoplite_route_latency": "shoplite", "shoplite_catalog_cache_headers": "shoplite",
-                    "prometheus_query": "prometheus", "cloudwatch_metric": "aws", "eks_cluster_status": "aws", "github_recent_commits": "github",
+                    "prometheus_query": "prometheus", "cloudwatch_metric": "aws", "cloudwatch_shoplite_overview": "aws", "cloudwatch_alarms": "aws", "eks_cluster_status": "aws", "github_recent_commits": "github",
                     "github_commit_diff": "github", "github_list_files": "github", "github_read_file": "github", "github_search_code": "github",
                     "propose_code_change": "github", "akamai_list_properties": "akamai", "akamai_property_caching_rules": "akamai"}
 
