@@ -129,6 +129,12 @@ CATALOG = {
         "fields": [
             {"k": "pat", "label": "Personal access token", "type": "secret", "help": "DevRev → Settings → Account → Personal Access Token."},
             {"k": "part", "label": "Product / part (optional)", "type": "text", "placeholder": "ShopLite"},
+            {"k": "signals_agent", "label": "Customer-signals agent ID (optional)", "type": "text",
+             "placeholder": "don:core:dvrv-us-1:devo/…:ai_agent/5", "help": "Agent Studio agent Sidekick consults for “what do customers want”."},
+            {"k": "standards_agent", "label": "Coding-standards agent ID (optional)", "type": "text",
+             "placeholder": "don:core:dvrv-us-1:devo/…:ai_agent/6", "help": "Agent Studio agent Sidekick consults before writing code."},
+            {"k": "feedback_chat", "label": "Synced Slack feedback chat (optional)", "type": "text", "placeholder": "DM-…",
+             "help": "AirSync stores Slack as a chat agents can't search; Sidekick copies its new messages into tickets every 5 min."},
         ],
     },
     "teams": {
