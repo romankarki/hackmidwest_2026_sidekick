@@ -382,10 +382,37 @@ def _ship_code_change(conv, change, step):
     last_pr = {**{k: pr[k] for k in ("number", "url", "branch", "base", "repo", "files")}, "preview_url": url,
                **{k: change.get(k) for k in ("title", "summary", "assumptions", "follow_ups", "requested_by", "approved_by")}}
     db.run("UPDATE conversations SET context = context || %s WHERE id = %s", (db.J({"last_pr": last_pr}), conv["id"]))
+    devrev_note = _devrev_write_back(change, pr, url, step)
     return (f"✅ *Pull request #{pr['number']} opened* on `{pr['repo']}`: {change['title']}\n"
-            f"• Branch `{pr['branch']}` → `{pr['base']}`\n• Review and merge it on GitHub: {pr['url']}{preview}\n"
+            f"• Branch `{pr['branch']}` → `{pr['base']}`\n• Review and merge it on GitHub: {pr['url']}{preview}{devrev_note}\n"
             "_When the preview looks good, say “file an issue for a dev” and I'll hand it off with the preview link, "
             "assumptions and follow-ups._", actions)
+
+
+def _devrev_write_back(change, pr, preview_url, step):
+    """Close the loop: comment the PR + preview on the DevRev tickets the change came from. Never blocks the PR."""
+    ids = change.get("source_tickets") or []
+    if not ids:
+        return ""
+    from . import devrev
+    try:
+        tickets = devrev.resolve_tickets(ids)
+    except Exception:  # noqa: BLE001
+        return "\n• ⚠️ Couldn't reach DevRev to update the source tickets"
+    done = []
+    for t in tickets:
+        body = (f"🚀 Sidekick opened a pull request for this: *{change['title']}*\n• PR: {pr['url']}"
+                + (f"\n• Live preview: {preview_url}" if preview_url else "")
+                + f"\n• Requested by {change.get('requested_by', '?')}, approved by {change.get('approved_by', '?')}. "
+                  "This ticket will be updated when it ships.")
+        try:
+            step("devrev.comment", f"{t['display_id']} ← PR #{pr['number']}", lambda t=t, body=body: devrev.comment(t["id"], body))
+            done.append(t["display_id"])
+        except Exception:  # noqa: BLE001 — reported as a failed step
+            pass
+    missing = [i for i in ids if i not in {t["display_id"] for t in tickets}]
+    note = f"\n• DevRev updated: {', '.join(done)}" if done else ""
+    return note + (f" (not found: {', '.join(missing)})" if missing else "")
 
 
 # ---------- runs whose steps do real work (not simulated) ----------

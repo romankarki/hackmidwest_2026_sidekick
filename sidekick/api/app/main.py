@@ -11,7 +11,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import brain, db, integrations, models, previews
+from . import brain, db, devrev, integrations, models, previews
 from .catalog import POLICIES, SETTINGS, SKILLS, default_workflows
 
 OWNER_EMAIL = os.getenv("SIDEKICK_OWNER_EMAIL", "owner@example.com")
@@ -50,6 +50,7 @@ def seed():
 async def lifespan(_app):
     db.open_pool()
     seed()
+    devrev.start_feedback_sync()  # Slack feedback (synced into DevRev as a chat) → searchable tickets, every 5 min
     # runs interrupted by a restart can't resume (threads died) — mark them failed and unstick their conversations
     db.run("UPDATE conversations SET status = 'new' WHERE id IN (SELECT conversation_id FROM runs WHERE status = 'running')")
     db.run("UPDATE runs SET status = 'failed', finished_at = now(), result = %s WHERE status = 'running'",
