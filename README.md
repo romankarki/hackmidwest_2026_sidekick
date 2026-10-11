@@ -1,5 +1,7 @@
 # Sidekick: a sidekick for everyone
 
+## 🏆 Hack Midwest 2026: competing in the DevRev + AWS + Akamai tracks
+
 Sidekick is a pluggable ops/dev agent built for Hack Midwest 2026 (DevRev, Akamai and AWS tracks). Teams talk to it from Slack or DevRev Computer. It investigates incidents, answers infra questions and proposes fixes, and nothing ships until a human approves.
 
 ```
