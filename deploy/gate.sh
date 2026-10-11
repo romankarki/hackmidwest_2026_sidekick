@@ -102,8 +102,18 @@ EOF
     kubectl -n "$ns" patch serviceaccount default -p '{"imagePullSecrets":[{"name":"ghcr"}]}' >/dev/null
   fi
   kubectl apply -k "$dir/.k8s-preview" >/dev/null
-  kubectl -n "$ns" rollout restart deploy/db deploy/api deploy/web >/dev/null   # fresh DB + new images on every push
-  kubectl -n "$ns" rollout status deploy/db deploy/api deploy/web --timeout=300s >&2
+  # fresh DB + new images on every push — DB first, so the API never starts against a database that isn't up yet
+  kubectl -n "$ns" rollout restart deploy/db >/dev/null
+  kubectl -n "$ns" rollout status deploy/db --timeout=180s >&2
+  kubectl -n "$ns" rollout restart deploy/api deploy/web >/dev/null
+  kubectl -n "$ns" rollout status deploy/api deploy/web --timeout=300s >&2
+  # only report the link once it really works: Let's Encrypt certificate issued and the app answering over HTTPS
+  kubectl -n "$ns" wait --for=condition=Ready certificate/web-tls --timeout=180s >&2 || log "⚠️ certificate not ready yet"
+  for _ in $(seq 1 30); do
+    curl -fsS -o /dev/null --max-time 5 "$url/api/health" && break
+    sleep 4
+  done
+  curl -fsS -o /dev/null --max-time 5 "$url/api/health" || { echo "Preview deployed but $url/api/health is not answering yet"; exit 4; }
   log "✅ $url"
 }
 
