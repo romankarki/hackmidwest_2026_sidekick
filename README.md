@@ -9,6 +9,39 @@ Browser ────────► dashboard (:8090) ────────�
                                                         └─ integrations: AWS · Akamai · GitHub · Prometheus · DevRev …
 ```
 
+## Live
+
+**Apps**
+
+| What | URL |
+|---|---|
+| **ShopLite** (the app Sidekick operates, production) | https://shop.172-232-189-143.sslip.io |
+| **Sidekick dashboard** (integrations, model, runs and approvals, previews kill switch) | https://sidekick.172-232-189-143.sslip.io (password-protected; ask the team for access) |
+| **DevRev MCP connector** (for DevRev Computer / Agent Studio) | https://mcp.172-232-189-143.sslip.io/mcp (needs a per-teammate token) |
+
+**Previews**
+
+| What | URL |
+|---|---|
+| PR previews, one per pull request on Akamai LKE (Kubernetes) | `https://pr-<PR number>.172-238-58-56.sslip.io` |
+| Demo previews: wishlist / Tinder-style swipe | https://pr-142.172-232-189-143.sslip.io · https://pr-143.172-232-189-143.sslip.io |
+
+**Code and monitoring**
+
+| What | URL |
+|---|---|
+| Target app repo (Sidekick opens its PRs here) | https://github.com/romankarki/shoplite-target |
+| CloudWatch dashboard (ShopLite metrics shipped from Akamai) | `ShopLite-on-Akamai` in AWS us-east-2 |
+
+**Hosting**
+- **Akamai Cloud:** VM `sidekick-prod` (Seattle) runs ShopLite and Sidekick. The LKE cluster `sidekick-previews` runs the PR previews.
+- **AWS:** Amazon Bedrock runs the model; CloudWatch handles metrics and alarms.
+- **DevRev:** customer signals, plus the Agent Studio agents.
+
+Deploys run on every push through GitHub Actions; see [`deploy/README.md`](deploy/README.md).
+
+## Repository
+
 | Folder | What it is |
 |---|---|
 | [`sidekick/`](sidekick/README.md) | Control plane: API, brain (scripted demo or Strands agent), dashboard, Postgres, Docker Compose |
