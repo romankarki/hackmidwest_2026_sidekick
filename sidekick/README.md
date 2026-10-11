@@ -145,5 +145,28 @@ The PR flow is only in LLM mode (Brain mode → LLM agent). Merging stays with a
 
 Next to make real: a preview environment per PR branch, and deploy hooks after merge.
 
+## DevRev: customer context in, results back out (`api/app/devrev.py`)
+
+DevRev aggregates the customer signals and internal docs:
+- **Email:** customers write to the Email Integration snap-in address (`…@hooks.devrev.ai`), and each email becomes a ticket on the *ShopLite* part.
+- **Slack #customer-feedback:** AirSync stores the channel as a chat that DevRev search and agents can't see. Sidekick copies each new message into a `[Slack]` ticket on the matching part (Wishlist, Catalog & sorting, Checkout) every 5 minutes, without duplicates.
+- **Google Doc "ShopLite Engineering Standards":** a knowledge-base article (ART-2).
+
+Two Agent Studio agents sit on top: *Customer Signals Hub* and *Engineering Standards Guide*.
+
+Sidekick uses them through the **`ask_devrev`** tool, which calls the agents API `ai-agents.events.execute-sync` with one DevRev session per conversation:
+- `about="customers"`: what customers want, with ticket evidence;
+- `about="standards"`: asked before proposing code. The agent follows the rules and cites the § sections it applied.
+
+`propose_code_change(..., source_tickets=[...])` closes the loop. After approval, the PR and live preview link are posted as a comment on those DevRev tickets.
+
+**Settings** (Integrations → DevRev):
+- personal access token;
+- part `ShopLite`;
+- the two agent IDs (`don:core:…:ai_agent/N`);
+- the synced chat (`DM-…`).
+
+**Try it in Slack:** *"what are customers asking for? use DevRev"* → *"build the top request, follow our coding standards, and raise a PR"* → Approve → PR, preview, and comments on the DevRev tickets.
+
 ## API
 OpenAPI docs: http://localhost:8090/api/docs
