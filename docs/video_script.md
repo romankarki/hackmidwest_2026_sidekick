@@ -11,7 +11,7 @@ In the table, **bold** = what you say, `code` = what you type, *italics* = what'
   2. Sidekick dashboard → **Integrations**, then the **Model** page
   3. CloudWatch dashboard **ShopLite-on-Akamai**
   4. DevRev → Tickets, plus Agent Studio (Customer Signals Hub)
-  5. ShopLite prod: https://shop.172-232-189-143.sslip.io
+  5. ShopLite prod: https://shop.172-234-233-51.sslip.io
 - **Brain mode:** **LLM agent**, model **Kimi K3 on Amazon Bedrock**.
 - **Slack:** zoom to 125%, hide the sidebar clutter, notifications off.
 

@@ -17,16 +17,16 @@ Browser ────────► dashboard (:8090) ────────�
 
 | What | URL |
 |---|---|
-| **ShopLite** (the app Sidekick operates, production) | https://shop.172-232-189-143.sslip.io |
-| **Sidekick dashboard** (integrations, model, runs and approvals, previews kill switch) | https://sidekick.172-232-189-143.sslip.io (password-protected; ask the team for access) |
-| **DevRev MCP connector** (for DevRev Computer / Agent Studio) | https://mcp.172-232-189-143.sslip.io/mcp (needs a per-teammate token) |
+| **ShopLite** (the app Sidekick operates, production) | https://shop.172-234-233-51.sslip.io |
+| **Sidekick dashboard** (integrations, model, runs and approvals, previews kill switch) | https://sidekick.172-234-233-51.sslip.io (password-protected; ask the team for access) |
+| **DevRev MCP connector** (for DevRev Computer / Agent Studio) | https://mcp.172-234-233-51.sslip.io/mcp (needs a per-teammate token) |
 
 **Previews**
 
 | What | URL |
 |---|---|
 | PR previews, one per pull request on Akamai LKE (Kubernetes) | `https://pr-<PR number>.172-238-58-56.sslip.io` |
-| Demo previews: wishlist / Tinder-style swipe | https://pr-142.172-232-189-143.sslip.io · https://pr-143.172-232-189-143.sslip.io |
+| Demo previews: wishlist / Tinder-style swipe | https://pr-142.172-234-233-51.sslip.io · https://pr-143.172-234-233-51.sslip.io |
 
 **Code and monitoring**
 
