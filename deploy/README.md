@@ -34,7 +34,15 @@ bash deploy/lke-setup.sh <ip>                         # LKE cluster + ingress + 
 GITHUB_TOKEN=<token> python deploy/set-github-secrets.py <ip>   # enables deploy-on-push + PR previews
 ```
 
-`provision.sh` is safe to re-run: it reuses the firewall and VM if they exist. It carries your local Sidekick database over (integrations, model settings, history), so the hosted Sidekick is configured exactly like your laptop.
+`provision.sh` is safe to re-run: it reuses the firewall and VM if they exist.
+
+> ⚠️ **Re-provisioning restores your *laptop's* Sidekick database.** If prod has newer settings (model, AWS/DevRev/Akamai keys), back up prod first and use that dump instead:
+> `ssh root@<ip> "cd /opt/apps/sidekick/sidekick && docker compose exec -T db pg_dump --clean --if-exists -U sidekick sidekick" > prod.sql`
+>
+> After a **new VM**, the IP changes. Then:
+> - re-run `python deploy/set-github-secrets.py <new-ip>`, so deploys go to the new host;
+> - update the links in the README;
+> - check Integrations and Model in the dashboard, using **Test model**. It carries your local Sidekick database over (integrations, model settings, history), so the hosted Sidekick is configured exactly like your laptop.
 
 ## Day to day
 

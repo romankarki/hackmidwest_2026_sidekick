@@ -25,6 +25,7 @@ install -o deploy -g deploy -m 600 "$UP/slack-bot.env" "$APPS/sidekick/slack-bot
 install -o deploy -g deploy -m 600 "$UP/teammates.json" "$APPS/sidekick/devrev-mcp/teammates.json"
 cat >> "$APPS/sidekick/sidekick/.env" <<EOF
 SIDEKICK_PUBLIC_URL=https://sidekick.$HOST
+SIDEKICK_HOSTING=Akamai Cloud VM sidekick-prod (Seattle us-sea) · PR previews on Akamai LKE
 MCP_ALLOWED_HOSTS=mcp.$HOST
 EOF
 
